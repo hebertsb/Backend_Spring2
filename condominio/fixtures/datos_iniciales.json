@@ -1,0 +1,1151 @@
+[
+  {
+    "model": "condominio.categoria",
+    "pk": 1,
+    "fields": { "nombre": "Aventura" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 2,
+    "fields": { "nombre": "Gastronomía" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 3,
+    "fields": { "nombre": "Cultura" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 4,
+    "fields": { "nombre": "Naturaleza" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 5,
+    "fields": { "nombre": "Histórico" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 6,
+    "fields": { "nombre": "Religioso" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 7,
+    "fields": { "nombre": "Deportivo" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 8,
+    "fields": { "nombre": "Fotográfico" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 9,
+    "fields": { "nombre": "Bienestar" }
+  },
+  {
+    "model": "condominio.categoria",
+    "pk": 10,
+    "fields": { "nombre": "Educativo" }
+  },
+
+  {
+    "model": "condominio.usuario",
+    "pk": 1,
+    "fields": {
+      "nombre": "Ana García",
+      "email": "ana.garcia@example.com",
+      "contrasena": "123",
+      "rubro": "Turismo",
+      "carnet": "V-12345678",
+      "fecha_nacimiento": "1988-05-12",
+      "num_viajes": 15
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 2,
+    "fields": {
+      "nombre": "Carlos Méndez",
+      "email": "carlos.mendez@example.com",
+      "contrasena": "123",
+      "rubro": "Transporte",
+      "carnet": "V-98765432",
+      "fecha_nacimiento": "1975-11-02",
+      "num_viajes": 45
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 3,
+    "fields": {
+      "nombre": "Lucía Fernández",
+      "email": "lucia.fernandez@example.com",
+      "contrasena": "123",
+      "rubro": "Salud",
+      "carnet": "E-33445566",
+      "fecha_nacimiento": "1992-07-22",
+      "num_viajes": 5
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 4,
+    "fields": {
+      "nombre": "Diego Rivera",
+      "email": "diego.rivera@example.com",
+      "contrasena": "123",
+      "rubro": "Transporte",
+      "carnet": "V-99887766",
+      "fecha_nacimiento": "1985-03-30",
+      "num_viajes": 78
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 5,
+    "fields": {
+      "nombre": "María López",
+      "email": "maria.lopez@example.com",
+      "contrasena": "123",
+      "rubro": "Educación",
+      "carnet": "E-55667788",
+      "fecha_nacimiento": "1998-01-15",
+      "num_viajes": 3
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 6,
+    "fields": {
+      "nombre": "Sofía Torres",
+      "email": "sofia.torres@example.com",
+      "contrasena": "123",
+      "rubro": "Comercio",
+      "carnet": "C-2023456",
+      "fecha_nacimiento": "1982-08-19",
+      "num_viajes": 9
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 7,
+    "fields": {
+      "nombre": "Paula Núñez",
+      "email": "paula.nunez@example.com",
+      "contrasena": "123",
+      "rubro": "Hostelería",
+      "carnet": "H-77889900",
+      "fecha_nacimiento": "1995-09-09",
+      "num_viajes": 16
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 8,
+    "fields": {
+      "nombre": "Andrés Soto",
+      "email": "andres.soto@example.com",
+      "contrasena": "123",
+      "rubro": "Inmobiliaria",
+      "carnet": "I-66778899",
+      "fecha_nacimiento": "1970-04-28",
+      "num_viajes": 60
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 9,
+    "fields": {
+      "nombre": "Verónica Vidal",
+      "email": "veronica.vidal@example.com",
+      "contrasena": "123",
+      "rubro": "Entretenimiento",
+      "carnet": "E-44556677",
+      "fecha_nacimiento": "1993-06-11",
+      "num_viajes": 22
+    }
+  },
+  {
+    "model": "condominio.usuario",
+    "pk": 10,
+    "fields": {
+      "nombre": "Luis Pérez",
+      "email": "luis.perez@example.com",
+      "contrasena": "123",
+      "rubro": "Turismo",
+      "carnet": "T-11223344",
+      "fecha_nacimiento": "1990-10-05",
+      "num_viajes": 34
+    }
+  },
+
+  {
+    "model": "condominio.campania",
+    "pk": 1,
+    "fields": {
+      "descripcion": "Promo Primavera",
+      "fecha_inicio": "2025-09-01",
+      "fecha_fin": "2025-10-31",
+      "tipo_descuento": "%",
+      "monto": "10.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 2,
+    "fields": {
+      "descripcion": "Viaje en Pareja",
+      "fecha_inicio": "2025-08-15",
+      "fecha_fin": "2025-09-30",
+      "tipo_descuento": "%",
+      "monto": "20.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 3,
+    "fields": {
+      "descripcion": "Fiestas Nacionales",
+      "fecha_inicio": "2025-09-10",
+      "fecha_fin": "2025-10-15",
+      "tipo_descuento": "%",
+      "monto": "15.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 4,
+    "fields": {
+      "descripcion": "Aventura Total",
+      "fecha_inicio": "2025-07-01",
+      "fecha_fin": "2025-09-30",
+      "tipo_descuento": "%",
+      "monto": "25.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 5,
+    "fields": {
+      "descripcion": "Verano Familiar",
+      "fecha_inicio": "2025-11-01",
+      "fecha_fin": "2025-12-31",
+      "tipo_descuento": "%",
+      "monto": "12.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 6,
+    "fields": {
+      "descripcion": "Escapada Romántica",
+      "fecha_inicio": "2025-02-01",
+      "fecha_fin": "2025-03-01",
+      "tipo_descuento": "%",
+      "monto": "18.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 7,
+    "fields": {
+      "descripcion": "Explora tu Ciudad",
+      "fecha_inicio": "2025-01-10",
+      "fecha_fin": "2025-02-28",
+      "tipo_descuento": "%",
+      "monto": "8.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 8,
+    "fields": {
+      "descripcion": "Naturaleza Viva",
+      "fecha_inicio": "2025-06-01",
+      "fecha_fin": "2025-07-31",
+      "tipo_descuento": "%",
+      "monto": "14.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 9,
+    "fields": {
+      "descripcion": "Turismo Gastronómico",
+      "fecha_inicio": "2025-05-01",
+      "fecha_fin": "2025-06-30",
+      "tipo_descuento": "%",
+      "monto": "10.00"
+    }
+  },
+  {
+    "model": "condominio.campania",
+    "pk": 10,
+    "fields": {
+      "descripcion": "Escapada Cultural",
+      "fecha_inicio": "2025-09-01",
+      "fecha_fin": "2025-09-30",
+      "tipo_descuento": "%",
+      "monto": "5.00"
+    }
+  },
+
+  {
+    "model": "condominio.cupon",
+    "pk": 1,
+    "fields": { "nro_usos": 0, "cantidad_max": 20, "campania": 1 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 2,
+    "fields": { "nro_usos": 2, "cantidad_max": 20, "campania": 2 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 3,
+    "fields": { "nro_usos": 0, "cantidad_max": 15, "campania": 3 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 4,
+    "fields": { "nro_usos": 5, "cantidad_max": 25, "campania": 4 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 5,
+    "fields": { "nro_usos": 10, "cantidad_max": 30, "campania": 5 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 6,
+    "fields": { "nro_usos": 3, "cantidad_max": 20, "campania": 6 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 7,
+    "fields": { "nro_usos": 1, "cantidad_max": 10, "campania": 7 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 8,
+    "fields": { "nro_usos": 4, "cantidad_max": 40, "campania": 8 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 9,
+    "fields": { "nro_usos": 0, "cantidad_max": 15, "campania": 9 }
+  },
+  {
+    "model": "condominio.cupon",
+    "pk": 10,
+    "fields": { "nro_usos": 7, "cantidad_max": 25, "campania": 10 }
+  },
+
+  {
+    "model": "condominio.reserva",
+    "pk": 1,
+    "fields": {
+      "fecha": "2025-10-01",
+      "total": "250.00",
+      "cliente": 1,
+      "cupon": 1
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 2,
+    "fields": {
+      "fecha": "2025-09-28",
+      "total": "320.00",
+      "cliente": 2,
+      "cupon": 2
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 3,
+    "fields": {
+      "fecha": "2025-09-15",
+      "total": "150.00",
+      "cliente": 3,
+      "cupon": null
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 4,
+    "fields": {
+      "fecha": "2025-09-10",
+      "total": "450.00",
+      "cliente": 4,
+      "cupon": 3
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 5,
+    "fields": {
+      "fecha": "2025-08-30",
+      "total": "180.00",
+      "cliente": 5,
+      "cupon": null
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 6,
+    "fields": {
+      "fecha": "2025-07-25",
+      "total": "600.00",
+      "cliente": 6,
+      "cupon": 4
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 7,
+    "fields": {
+      "fecha": "2025-06-18",
+      "total": "200.00",
+      "cliente": 7,
+      "cupon": 5
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 8,
+    "fields": {
+      "fecha": "2025-06-01",
+      "total": "350.00",
+      "cliente": 8,
+      "cupon": 6
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 9,
+    "fields": {
+      "fecha": "2025-05-21",
+      "total": "410.00",
+      "cliente": 9,
+      "cupon": 7
+    }
+  },
+  {
+    "model": "condominio.reserva",
+    "pk": 10,
+    "fields": {
+      "fecha": "2025-04-10",
+      "total": "280.00",
+      "cliente": 10,
+      "cupon": 8
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 1,
+    "fields": {
+      "nombre": "Laura",
+      "apellido": "Pérez",
+      "fecha_nac": "1990-04-05",
+      "nacionalidad": "Venezolana",
+      "nro_doc": "V-12345678",
+      "email": "laura.perez@example.com",
+      "telefono": "+58-4121234509",
+      "es_titular": true
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 2,
+    "fields": {
+      "nombre": "Andrés",
+      "apellido": "Ramírez",
+      "fecha_nac": "1985-07-10",
+      "nacionalidad": "Colombiano",
+      "nro_doc": "C-98765432",
+      "email": "andres.ramirez@example.com",
+      "telefono": "+57-3109876486",
+      "es_titular": false
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 3,
+    "fields": {
+      "nombre": "Marta",
+      "apellido": "López",
+      "fecha_nac": "1992-01-18",
+      "nacionalidad": "Peruana",
+      "nro_doc": "P-22334455",
+      "email": "marta.lopez@example.com",
+      "telefono": "+51-999888726",
+      "es_titular": true
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 4,
+    "fields": {
+      "nombre": "Diego",
+      "apellido": "Torres",
+      "fecha_nac": "1994-11-23",
+      "nacionalidad": "Chileno",
+      "nro_doc": "CH-55667788",
+      "email": "diego.torres@example.com",
+      "telefono": "+56-912345622",
+      "es_titular": false
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 5,
+    "fields": {
+      "nombre": "Camila",
+      "apellido": "Díaz",
+      "fecha_nac": "1997-08-12",
+      "nacionalidad": "Argentina",
+      "nro_doc": "AR-33445566",
+      "email": "camila.diaz@example.com",
+      "telefono": "+54-911223290",
+      "es_titular": true
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 6,
+    "fields": {
+      "nombre": "Luis",
+      "apellido": "Cordero",
+      "fecha_nac": "1988-09-20",
+      "nacionalidad": "Boliviano",
+      "nro_doc": "B-44556677",
+      "email": "luis.cordero@example.com",
+      "telefono": "+591-71234566",
+      "es_titular": false
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 7,
+    "fields": {
+      "nombre": "Natalia",
+      "apellido": "Vega",
+      "fecha_nac": "1995-02-02",
+      "nacionalidad": "Ecuatoriana",
+      "nro_doc": "E-55667788",
+      "email": "natalia.vega@example.com",
+      "telefono": "+593-981112233",
+      "es_titular": true
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 8,
+    "fields": {
+      "nombre": "Pedro",
+      "apellido": "Morales",
+      "fecha_nac": "1989-06-16",
+      "nacionalidad": "Uruguayo",
+      "nro_doc": "U-33445566",
+      "email": "pedro.morales@example.com",
+      "telefono": "+598-987654321",
+      "es_titular": false
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 9,
+    "fields": {
+      "nombre": "Valeria",
+      "apellido": "Suárez",
+      "fecha_nac": "1991-03-14",
+      "nacionalidad": "Paraguaya",
+      "nro_doc": "P-77889900",
+      "email": "valeria.suarez@example.com",
+      "telefono": "+595-981778899",
+      "es_titular": true
+    }
+  },
+  {
+    "model": "condominio.visitante",
+    "pk": 10,
+    "fields": {
+      "nombre": "José",
+      "apellido": "Pinto",
+      "fecha_nac": "1983-12-05",
+      "nacionalidad": "Mexicano",
+      "nro_doc": "M-66778899",
+      "email": "jose.pinto@example.com",
+      "telefono": "+52-5551234567",
+      "es_titular": false
+    }
+  },
+
+  {
+    "model": "condominio.servicio",
+    "pk": 1,
+    "fields": {
+      "titulo": "Tour por la Ciudad",
+      "descripcion": "Recorrido guiado por el centro histórico.",
+      "duracion": "3h",
+      "capacidad_max": 15,
+      "punto_encuentro": "Plaza Bolívar",
+      "estado": "Activo",
+      "categoria": 1,
+      "proveedor": 1
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 2,
+    "fields": {
+      "titulo": "Ruta Gastronómica",
+      "descripcion": "Degustación de platos típicos locales.",
+      "duracion": "2.5h",
+      "capacidad_max": 10,
+      "punto_encuentro": "Mercado Principal",
+      "estado": "Activo",
+      "categoria": 2,
+      "proveedor": 2
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 3,
+    "fields": {
+      "titulo": "Senderismo en el Cerro",
+      "descripcion": "Caminata ecológica en el parque nacional.",
+      "duracion": "4h",
+      "capacidad_max": 20,
+      "punto_encuentro": "Entrada al Parque",
+      "estado": "Inactivo",
+      "categoria": 3,
+      "proveedor": 3
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 4,
+    "fields": {
+      "titulo": "Paseo en Bicicleta",
+      "descripcion": "Recorrido urbano en bicicleta.",
+      "duracion": "2h",
+      "capacidad_max": 12,
+      "punto_encuentro": "Plaza Mayor",
+      "estado": "Activo",
+      "categoria": 1,
+      "proveedor": 4
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 5,
+    "fields": {
+      "titulo": "Taller de Cocina",
+      "descripcion": "Aprende a preparar arepas y platos típicos.",
+      "duracion": "3h",
+      "capacidad_max": 8,
+      "punto_encuentro": "Casa Cultural",
+      "estado": "Activo",
+      "categoria": 2,
+      "proveedor": 5
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 6,
+    "fields": {
+      "titulo": "Tour Fotográfico",
+      "descripcion": "Descubre los mejores paisajes para tus fotos.",
+      "duracion": "3.5h",
+      "capacidad_max": 10,
+      "punto_encuentro": "Mirador Central",
+      "estado": "Activo",
+      "categoria": 8,
+      "proveedor": 6
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 7,
+    "fields": {
+      "titulo": "Caminata Nocturna",
+      "descripcion": "Explora la ciudad bajo las estrellas.",
+      "duracion": "2h",
+      "capacidad_max": 20,
+      "punto_encuentro": "Puente Viejo",
+      "estado": "Activo",
+      "categoria": 4,
+      "proveedor": 7
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 8,
+    "fields": {
+      "titulo": "Clases de Yoga",
+      "descripcion": "Sesión de relajación en la playa.",
+      "duracion": "1.5h",
+      "capacidad_max": 15,
+      "punto_encuentro": "Playa Central",
+      "estado": "Activo",
+      "categoria": 9,
+      "proveedor": 8
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 9,
+    "fields": {
+      "titulo": "Tour Educativo",
+      "descripcion": "Visita guiada por museos históricos.",
+      "duracion": "2h",
+      "capacidad_max": 25,
+      "punto_encuentro": "Museo Nacional",
+      "estado": "Activo",
+      "categoria": 10,
+      "proveedor": 9
+    }
+  },
+  {
+    "model": "condominio.servicio",
+    "pk": 10,
+    "fields": {
+      "titulo": "Excursión a la Montaña",
+      "descripcion": "Disfruta de un día de senderismo extremo.",
+      "duracion": "6h",
+      "capacidad_max": 12,
+      "punto_encuentro": "Terminal Norte",
+      "estado": "Activo",
+      "categoria": 1,
+      "proveedor": 10
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 1,
+    "fields": {
+      "monto": "250.00",
+      "metodo": "Tarjeta",
+      "fecha_pago": "2025-10-01",
+      "estado": "Confirmado",
+      "url_stripe": "https://stripe.com/pay/abc123",
+      "reserva": 1
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 2,
+    "fields": {
+      "monto": "320.00",
+      "metodo": "Transferencia",
+      "fecha_pago": "2025-09-28",
+      "estado": "Pendiente",
+      "url_stripe": "https://stripe.com/pay/xyz456",
+      "reserva": 2
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 3,
+    "fields": {
+      "monto": "150.00",
+      "metodo": "Tarjeta",
+      "fecha_pago": "2025-09-15",
+      "estado": "Confirmado",
+      "url_stripe": "https://stripe.com/pay/def789",
+      "reserva": 3
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 4,
+    "fields": {
+      "monto": "450.00",
+      "metodo": "Efectivo",
+      "fecha_pago": "2025-09-10",
+      "estado": "Confirmado",
+      "url_stripe": "https://stripe.com/pay/ghi101",
+      "reserva": 4
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 5,
+    "fields": {
+      "monto": "180.00",
+      "metodo": "Tarjeta",
+      "fecha_pago": "2025-08-30",
+      "estado": "Fallido",
+      "url_stripe": "https://stripe.com/pay/jkl112",
+      "reserva": 5
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 6,
+    "fields": {
+      "monto": "600.00",
+      "metodo": "Transferencia",
+      "fecha_pago": "2025-07-25",
+      "estado": "Confirmado",
+      "url_stripe": "https://stripe.com/pay/mno113",
+      "reserva": 6
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 7,
+    "fields": {
+      "monto": "200.00",
+      "metodo": "Efectivo",
+      "fecha_pago": "2025-06-18",
+      "estado": "Pendiente",
+      "url_stripe": "https://stripe.com/pay/pqr114",
+      "reserva": 7
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 8,
+    "fields": {
+      "monto": "350.00",
+      "metodo": "Tarjeta",
+      "fecha_pago": "2025-06-01",
+      "estado": "Confirmado",
+      "url_stripe": "https://stripe.com/pay/stu115",
+      "reserva": 8
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 9,
+    "fields": {
+      "monto": "410.00",
+      "metodo": "Transferencia",
+      "fecha_pago": "2025-05-21",
+      "estado": "Pendiente",
+      "url_stripe": "https://stripe.com/pay/vwx116",
+      "reserva": 9
+    }
+  },
+  {
+    "model": "condominio.pago",
+    "pk": 10,
+    "fields": {
+      "monto": "280.00",
+      "metodo": "Tarjeta",
+      "fecha_pago": "2025-04-10",
+      "estado": "Confirmado",
+      "url_stripe": "https://stripe.com/pay/yz117",
+      "reserva": 10
+    }
+  },
+
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 1,
+    "fields": {
+      "descripcion": "Permite cambio 48h antes",
+      "limite_hora": 48,
+      "condiciones": "Sin penalización si es voluntaria"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 2,
+    "fields": {
+      "descripcion": "Permite cambio 24h antes",
+      "limite_hora": 24,
+      "condiciones": "Requiere justificación médica"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 3,
+    "fields": {
+      "descripcion": "No permite cambios el mismo día",
+      "limite_hora": 0,
+      "condiciones": "Solo por fuerza mayor"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 4,
+    "fields": {
+      "descripcion": "Cambio hasta 72h antes",
+      "limite_hora": 72,
+      "condiciones": "Sin costo adicional"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 5,
+    "fields": {
+      "descripcion": "Cambio hasta 12h antes",
+      "limite_hora": 12,
+      "condiciones": "Penalización del 20%"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 6,
+    "fields": {
+      "descripcion": "Cambio hasta 6h antes",
+      "limite_hora": 6,
+      "condiciones": "Penalización del 50%"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 7,
+    "fields": {
+      "descripcion": "Cambio libre con aviso 3 días antes",
+      "limite_hora": 72,
+      "condiciones": "Aplicable solo a clientes VIP"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 8,
+    "fields": {
+      "descripcion": "Cambio permitido 1 semana antes",
+      "limite_hora": 168,
+      "condiciones": "Solo para reservas grupales"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 9,
+    "fields": {
+      "descripcion": "Cambio permitido hasta 36h antes",
+      "limite_hora": 36,
+      "condiciones": "Penalización del 10%"
+    }
+  },
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 10,
+    "fields": {
+      "descripcion": "Sin reprogramación",
+      "limite_hora": 0,
+      "condiciones": "No se permiten cambios"
+    }
+  },
+
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 1,
+    "fields": {
+      "fecha_solicitud": "2025-10-02",
+      "nueva_fecha": "2025-10-10",
+      "estado": "Aprobado",
+      "tipo": "Voluntaria",
+      "reserva": 1
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 2,
+    "fields": {
+      "fecha_solicitud": "2025-09-28",
+      "nueva_fecha": "2025-10-05",
+      "estado": "Pendiente",
+      "tipo": "Forzada",
+      "reserva": 2
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 3,
+    "fields": {
+      "fecha_solicitud": "2025-09-16",
+      "nueva_fecha": "2025-09-20",
+      "estado": "Rechazada",
+      "tipo": "Voluntaria",
+      "reserva": 3
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 4,
+    "fields": {
+      "fecha_solicitud": "2025-09-11",
+      "nueva_fecha": "2025-09-18",
+      "estado": "Aprobado",
+      "tipo": "Forzada",
+      "reserva": 4
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 5,
+    "fields": {
+      "fecha_solicitud": "2025-08-31",
+      "nueva_fecha": "2025-09-03",
+      "estado": "Pendiente",
+      "tipo": "Voluntaria",
+      "reserva": 5
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 6,
+    "fields": {
+      "fecha_solicitud": "2025-07-27",
+      "nueva_fecha": "2025-08-01",
+      "estado": "Aprobado",
+      "tipo": "Forzada",
+      "reserva": 6
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 7,
+    "fields": {
+      "fecha_solicitud": "2025-06-19",
+      "nueva_fecha": "2025-06-25",
+      "estado": "Pendiente",
+      "tipo": "Voluntaria",
+      "reserva": 7
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 8,
+    "fields": {
+      "fecha_solicitud": "2025-06-02",
+      "nueva_fecha": "2025-06-10",
+      "estado": "Aprobado",
+      "tipo": "Voluntaria",
+      "reserva": 8
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 9,
+    "fields": {
+      "fecha_solicitud": "2025-05-22",
+      "nueva_fecha": "2025-05-28",
+      "estado": "Rechazada",
+      "tipo": "Forzada",
+      "reserva": 9
+    }
+  },
+  {
+    "model": "condominio.reprogramacion",
+    "pk": 10,
+    "fields": {
+      "fecha_solicitud": "2025-04-12",
+      "nueva_fecha": "2025-04-18",
+      "estado": "Pendiente",
+      "tipo": "Voluntaria",
+      "reserva": 10
+    }
+  },
+
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 1,
+    "fields": { "servicio": 1, "campania": 1 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 2,
+    "fields": { "servicio": 2, "campania": 2 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 3,
+    "fields": { "servicio": 3, "campania": 3 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 4,
+    "fields": { "servicio": 4, "campania": 4 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 5,
+    "fields": { "servicio": 5, "campania": 5 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 6,
+    "fields": { "servicio": 6, "campania": 6 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 7,
+    "fields": { "servicio": 7, "campania": 7 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 8,
+    "fields": { "servicio": 8, "campania": 8 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 9,
+    "fields": { "servicio": 9, "campania": 9 }
+  },
+  {
+    "model": "condominio.campaniaservicio",
+    "pk": 10,
+    "fields": { "servicio": 10, "campania": 10 }
+  },
+
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 1,
+    "fields": { "reserva": 1, "visitante": 1 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 2,
+    "fields": { "reserva": 1, "visitante": 2 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 3,
+    "fields": { "reserva": 2, "visitante": 3 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 4,
+    "fields": { "reserva": 3, "visitante": 4 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 5,
+    "fields": { "reserva": 4, "visitante": 5 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 6,
+    "fields": { "reserva": 5, "visitante": 6 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 7,
+    "fields": { "reserva": 6, "visitante": 7 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 8,
+    "fields": { "reserva": 7, "visitante": 8 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 9,
+    "fields": { "reserva": 8, "visitante": 9 }
+  },
+  {
+    "model": "condominio.reservavisitante",
+    "pk": 10,
+    "fields": { "reserva": 9, "visitante": 10 }
+  }
+]
