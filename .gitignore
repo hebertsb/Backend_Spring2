@@ -1,0 +1,77 @@
+# ======================================
+# 🚫 GITIGNORE PARA PROYECTO DJANGO
+# ======================================
+
+# ======================================
+# 🐍 PYTHON
+# ======================================
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+
+# ======================================
+# 🌐 DJANGO
+# ======================================
+# Base de datos
+*.sqlite3
+db.sqlite3
+
+# Configuraciones locales
+local_settings.py
+settings_local.py
+
+# Logs
+*.log
+
+# Media files (archivos subidos)
+media/
+soporte/
+
+# Static files (archivos estáticos recolectados)
+staticfiles/
+
+# ======================================
+# 🔒 SEGURIDAD
+# ======================================
+# Variables de entorno
+.env
+.environment
+
+# Archivos de configuración sensibles
+config.json
+credentials.json
+secrets.json
+
+# ======================================
+# �️ ENTORNO DE DESARROLLO
+# ======================================
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# ======================================
+# � SISTEMA
+# ======================================
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# ======================================
+# 📝 TEMPORALES
+# ======================================
+*.tmp
+*.bak
+*.backup
