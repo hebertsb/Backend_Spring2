@@ -1,5 +1,25 @@
 [
   {
+    "model": "condominio.rol",
+    "pk": 1,
+    "fields": { "nombre": "Administrador" }
+  },
+  {
+    "model": "condominio.rol",
+    "pk": 2,
+    "fields": { "nombre": "Cliente" }
+  },
+  {
+    "model": "condominio.rol",
+    "pk": 3,
+    "fields": { "nombre": "Proveedor" }
+  },
+  {
+    "model": "condominio.rol",
+    "pk": 4,
+    "fields": { "nombre": "Agente de Viajes" }
+  },
+  {
     "model": "condominio.categoria",
     "pk": 1,
     "fields": { "nombre": "Aventura" }
@@ -117,8 +137,7 @@
       "rubro": "Salud",
       "num_viajes": 5
     }
-  }
-,
+  },
   {
     "model": "condominio.campania",
     "pk": 1,
