@@ -1,7 +1,7 @@
 from django.db import models
 
 from core.models import TimeStampedModel
-
+from django.contrib.auth.models import User
 # Create your models here.
 
 
@@ -11,12 +11,9 @@ from django.db import models
 # 🧍 USUARIO
 # ======================================
 class Usuario(TimeStampedModel):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
     nombre = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
-    contrasena = models.CharField(max_length=128)
     rubro = models.CharField(max_length=100, blank=True, null=True)
-    carnet = models.CharField(max_length=20, blank=True, null=True)
-    fecha_nacimiento = models.DateField(blank=True, null=True)
     num_viajes = models.PositiveIntegerField(default=0)
 
     def __str__(self):
