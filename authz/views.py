@@ -96,3 +96,22 @@ def register(request):
 @api_view(["POST"])
 def perfil(request):
     return Response({"message": "perfil successful"})
+
+
+@api_view(["POST"])
+def logout(request):
+    # Invalida/elimina el token del usuario actual (si existe)
+    token_key = None
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    if auth_header and auth_header.startswith('Token '):
+        token_key = auth_header.split(' ', 1)[1]
+
+    if token_key:
+        try:
+            token = Token.objects.get(key=token_key)
+            token.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Token.DoesNotExist:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(status=status.HTTP_400_BAD_REQUEST)

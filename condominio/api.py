@@ -9,6 +9,12 @@ from .serializer import (
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
     ReprogramacionSerializer
 )
+from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
+from .models import Ticket, TicketMessage, Notificacion
+from .utils import assign_agent_to_ticket
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 
 # =====================================================
@@ -27,6 +33,31 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [permissions.AllowAny]
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def me(self, request):
+        # Siempre devolver 200 para usuarios autenticados.
+        # Si existe el perfil, devolverlo serializado; si no, devolver un fallback público mínimo.
+        user = request.user
+        try:
+            perfil = user.perfil
+        except Exception:
+            perfil = None
+
+        if perfil:
+            serializer = self.get_serializer(perfil)
+            return Response(serializer.data)
+
+        # Perfil no existe: devolver información pública mínima del user
+        fallback = {
+            'id': None,
+            'user': user.id,
+            'nombre': None,
+            'rubro': None,
+            'num_viajes': 0,
+            'rol': None,
+        }
+        return Response(fallback)
 
 
 # =====================================================
@@ -117,3 +148,87 @@ class ReprogramacionViewSet(viewsets.ModelViewSet):
     queryset = Reprogramacion.objects.select_related('reserva').all()
     serializer_class = ReprogramacionSerializer
     permission_classes = [permissions.AllowAny]
+
+
+# ==========================
+# Soporte (Tickets)
+# ==========================
+class TicketViewSet(viewsets.ModelViewSet):
+    queryset = Ticket.objects.all()
+    serializer_class = TicketSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return TicketDetailSerializer
+        return TicketSerializer
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        try:
+            perfil = user.perfil
+        except Exception:
+            perfil = None
+
+        ticket = serializer.save(creador=perfil)
+        assign_agent_to_ticket(ticket)
+
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            perfil = user.perfil
+        except Exception:
+            return Ticket.objects.none()
+
+        if perfil.rol and perfil.rol.nombre.lower() == 'soporte':
+            return Ticket.objects.all()
+        return Ticket.objects.filter(creador=perfil)
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        ticket = self.get_object()
+        ticket.estado = 'Cerrado'
+        ticket.save()
+        Notificacion.objects.create(usuario=ticket.creador, tipo='ticket_cerrado', datos={'ticket_id': ticket.id})
+        return Response({'status': 'cerrado'})
+
+
+class TicketMessageViewSet(viewsets.ModelViewSet):
+    queryset = TicketMessage.objects.all()
+    serializer_class = TicketMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        try:
+            perfil = user.perfil
+        except Exception:
+            perfil = None
+
+        message = serializer.save(autor=perfil)
+        ticket = message.ticket
+        if perfil and perfil.rol and perfil.rol.nombre.lower() == 'soporte':
+            ticket.estado = 'Respondido'
+            ticket.save()
+            Notificacion.objects.create(usuario=ticket.creador, tipo='ticket_respondido', datos={'ticket_id': ticket.id, 'message_id': message.id})
+
+
+class NotificacionViewSet(viewsets.ModelViewSet):
+    queryset = Notificacion.objects.all()
+    serializer_class = NotificacionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            perfil = user.perfil
+        except Exception:
+            return Notificacion.objects.none()
+        return Notificacion.objects.filter(usuario=perfil)
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        noti = self.get_object()
+        noti.leida = True
+        noti.save()
+        return Response({'status': 'leida'})

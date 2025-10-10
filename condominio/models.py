@@ -201,3 +201,55 @@ class Reprogramacion(TimeStampedModel):
 
     def __str__(self):
         return f"Reprogramación {self.id} ({self.estado})"
+
+
+# ======================================
+# 🆘 SOPORTE / TICKETS (CU17)
+# Minimal models required for soporte (no relación con Reserva)
+# ======================================
+class Ticket(TimeStampedModel):
+    ESTADOS = [
+        ('Abierto', 'Abierto'),
+        ('Asignado', 'Asignado'),
+        ('Respondido', 'Respondido'),
+        ('Cerrado', 'Cerrado'),
+    ]
+
+    creador = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='tickets_creados')
+    asunto = models.CharField(max_length=150)
+    descripcion = models.TextField()
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='Abierto')
+    agente = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_asignados')
+    prioridad = models.CharField(max_length=10, blank=True, null=True)
+    cerrado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Ticket #{self.id} - {self.asunto} ({self.estado})"
+
+
+class TicketMessage(TimeStampedModel):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='messages')
+    autor = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='mensajes_soporte')
+    texto = models.TextField()
+
+    def __str__(self):
+        return f"Mensaje #{self.id} - Ticket {self.ticket.id} by {self.autor.nombre}"
+
+
+class Notificacion(TimeStampedModel):
+    TIPOS = [
+        ('ticket_nuevo', 'Ticket Nuevo'),
+        ('ticket_respondido', 'Ticket Respondido'),
+        ('ticket_cerrado', 'Ticket Cerrado'),
+    ]
+
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='notificaciones')
+    tipo = models.CharField(max_length=50, choices=TIPOS)
+    datos = models.JSONField(blank=True, null=True)
+    leida = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Notificación #{self.id} -> {self.usuario.nombre} ({self.tipo})"

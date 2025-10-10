@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from authz.serializer import RolSerializer
 from .models import (
     Categoria, Servicio, Usuario, Campania, Cupon, Reserva, Visitante,
     ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, Reprogramacion
@@ -18,6 +19,9 @@ class CategoriaSerializer(serializers.ModelSerializer):
 # 🧍 USUARIO
 # =====================================================
 class UsuarioSerializer(serializers.ModelSerializer):
+    # anidar el rol como objeto para que sea consistente con el login
+    rol = RolSerializer(read_only=True)
+
     class Meta:
         model = Usuario
         fields = '__all__'
@@ -172,4 +176,40 @@ class ReprogramacionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reprogramacion
         fields = '__all__'
+        read_only_fields = ['id', 'created_at']
+
+
+# ==========================
+# Soporte (Tickets)
+# ==========================
+class TicketMessageSerializer(serializers.ModelSerializer):
+    autor_nombre = serializers.CharField(source='autor.nombre', read_only=True)
+
+    class Meta:
+        model = __import__('condominio.models', fromlist=['TicketMessage']).TicketMessage
+        fields = ['id', 'ticket', 'autor', 'autor_nombre', 'texto', 'created_at']
+        read_only_fields = ['id', 'created_at', 'autor_nombre', 'autor']
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    creador_nombre = serializers.CharField(source='creador.nombre', read_only=True)
+    agente_nombre = serializers.CharField(source='agente.nombre', read_only=True)
+
+    class Meta:
+        model = __import__('condominio.models', fromlist=['Ticket']).Ticket
+        fields = ['id', 'creador', 'creador_nombre', 'asunto', 'descripcion', 'estado', 'agente', 'agente_nombre', 'prioridad', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'creador', 'creador_nombre', 'estado', 'agente', 'agente_nombre', 'created_at', 'updated_at']
+
+
+class TicketDetailSerializer(TicketSerializer):
+    messages = TicketMessageSerializer(many=True, read_only=True)
+
+    class Meta(TicketSerializer.Meta):
+        fields = TicketSerializer.Meta.fields + ['messages']
+
+
+class NotificacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = __import__('condominio.models', fromlist=['Notificacion']).Notificacion
+        fields = ['id', 'usuario', 'tipo', 'datos', 'leida', 'created_at']
         read_only_fields = ['id', 'created_at']
