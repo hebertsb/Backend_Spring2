@@ -1,6 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .serializer import UserSerializer
+
+from authz.models import Rol
+from .serializer import UserSerializer, UsuarioSerializer
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework import status
@@ -17,13 +19,17 @@ def login(request):
         user = User.objects.get(email=email)
         if user.check_password(password):
             token, _ = Token.objects.get_or_create(user=user)
+
+            try:
+                perfil = user.perfil  # relación OneToOne con Usuario
+                perfil_serializado = UsuarioSerializer(perfil).data
+            except Usuario.DoesNotExist:
+                perfil_serializado = None
+
             return Response(
                 {
                     "token": token.key,
-                    "user": {
-                        "id": user.id,
-                        "email": user.email,
-                    },
+                    "user": perfil_serializado
                 }
             )
         else:
@@ -37,6 +43,7 @@ def login(request):
         )
 
 
+
 @api_view(["POST"])
 def register(request):
     serializer = UserSerializer(data=request.data)
@@ -44,21 +51,32 @@ def register(request):
         email = serializer.validated_data.get("email")
         password = serializer.validated_data["password"]
 
-        user = User.objects.create_user(
-             email=email, password=password
-        )
-
         nombre = request.data.get("nombre")
         rubro = request.data.get("rubro")
-        carnet = request.data.get("carnet")
-        fecha_nacimiento = request.data.get("fecha_nacimiento")
+        rol_id = request.data.get("rol")
 
-        Usuario.objects.create(
+        if not nombre or not rubro or not rol_id:
+            return Response(
+                {"error": "Los campos 'nombre', 'rubro' y 'rol' son obligatorios."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=password
+        )
+
+        try:
+            rol = Rol.objects.get(pk=rol_id)
+        except Rol.DoesNotExist:
+            return Response({"error": "El rol especificado no existe."}, status=status.HTTP_400_BAD_REQUEST)
+
+        perfil = Usuario.objects.create(
             user=user,
             nombre=nombre,
             rubro=rubro,
-            carnet=carnet,
-            fecha_nacimiento=fecha_nacimiento,
+            rol=rol,
         )
 
         token, _ = Token.objects.get_or_create(user=user)
@@ -66,14 +84,13 @@ def register(request):
         return Response(
             {
                 "token": token.key,
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                },
+                "user": UsuarioSerializer(perfil).data
             },
             status=status.HTTP_201_CREATED,
         )
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(["POST"])

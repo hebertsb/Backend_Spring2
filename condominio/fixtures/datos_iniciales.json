@@ -1,21 +1,21 @@
 [
   {
-    "model": "condominio.rol",
+    "model": "authz.rol",
     "pk": 1,
     "fields": { "nombre": "Administrador" }
   },
   {
-    "model": "condominio.rol",
+    "model": "authz.rol",
     "pk": 2,
     "fields": { "nombre": "Cliente" }
   },
   {
-    "model": "condominio.rol",
+    "model": "authz.rol",
     "pk": 3,
     "fields": { "nombre": "Proveedor" }
   },
   {
-    "model": "condominio.rol",
+    "model": "authz.rol",
     "pk": 4,
     "fields": { "nombre": "Agente de Viajes" }
   },
@@ -89,7 +89,8 @@
       "user": 1,
       "nombre": "Ana García",
       "rubro": "Turismo",
-      "num_viajes": 15
+      "num_viajes": 15,
+      "rol_id": 1
     }
   },
 
@@ -112,7 +113,8 @@
       "user": 2,
       "nombre": "Carlos Méndez",
       "rubro": "Transporte",
-      "num_viajes": 45
+      "num_viajes": 45,
+      "rol_id": 3
     }
   },
 
@@ -135,7 +137,8 @@
       "user": 3,
       "nombre": "Lucía Fernández",
       "rubro": "Salud",
-      "num_viajes": 5
+      "num_viajes": 5,
+      "rol_id": 2
     }
   },
   {

@@ -1,4 +1,6 @@
 from rest_framework import routers
+
+from authz.api import RolViewSet
 from .api import (
     CategoriaViewSet, ServicioViewSet, UsuarioViewSet, CampaniaViewSet,
     CuponViewSet, ReservaViewSet, VisitanteViewSet, ReservaVisitanteViewSet,
@@ -19,5 +21,6 @@ router.register(r'campania-servicios', CampaniaServicioViewSet)
 router.register(r'pagos', PagoViewSet)
 router.register(r'reglas-reprogramacion', ReglaReprogramacionViewSet)
 router.register(r'reprogramaciones', ReprogramacionViewSet)
+router.register(r'rol', RolViewSet)
 
 urlpatterns = router.urls
