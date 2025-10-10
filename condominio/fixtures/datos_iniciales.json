@@ -17,7 +17,7 @@
   {
     "model": "authz.rol",
     "pk": 4,
-    "fields": { "nombre": "Agente de Viajes" }
+    "fields": { "nombre": "Soporte" }
   },
   {
     "model": "condominio.categoria",

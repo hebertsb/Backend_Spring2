@@ -75,3 +75,7 @@ Desktop.ini
 *.tmp
 *.bak
 *.backup
+
+# Ignore all .txt files except requirements.txt (so only requirements.txt gets pushed)
+*.txt
+!requirements.txt

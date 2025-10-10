@@ -7,6 +7,7 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     ReprogramacionViewSet
 )
+from .api import TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)
@@ -22,5 +23,8 @@ router.register(r'pagos', PagoViewSet)
 router.register(r'reglas-reprogramacion', ReglaReprogramacionViewSet)
 router.register(r'reprogramaciones', ReprogramacionViewSet)
 router.register(r'rol', RolViewSet)
+router.register(r'tickets', TicketViewSet)
+router.register(r'ticket-messages', TicketMessageViewSet)
+router.register(r'notificaciones', NotificacionViewSet)
 
 urlpatterns = router.urls
