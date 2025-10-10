@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'condominio',
     'core',
-    'notificaciones',
+    'authz',
     'rest_framework',
     'rest_framework.authtoken',
 ]
