@@ -8,12 +8,8 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 )
-<<<<<<< HEAD
-from .api import TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 from .api import BitacoraViewSet
-=======
 from core.views import crear_pago  # asegúrate que está bien importado
->>>>>>> 1b50ad653f973c77e3353e75d9c1f1ced1141f16
 
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)

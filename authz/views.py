@@ -10,6 +10,18 @@ from rest_framework import status
 from condominio.models import Usuario, Bitacora  # importa tu modelo personalizado
 
 # Create your views here.
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import serializers
+
+from authz.models import Rol
+from .serializer import UserSerializer, UsuarioSerializer, RegisterSerializer, PublicUsuarioSerializer
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+from rest_framework import status
+from condominio.models import Usuario, Bitacora  # importa tu modelo personalizado
+
+# Create your views here.
 
 
 @api_view(["POST"])
@@ -22,7 +34,6 @@ def login(request):
             token, _ = Token.objects.get_or_create(user=user)
 
             try:
-<<<<<<< HEAD
                 perfil = user.perfil  # relación OneToOne con Usuario
                 perfil_serializado = PublicUsuarioSerializer(perfil).data
                 # registrar en bitacora: ingreso al sistema
@@ -31,10 +42,6 @@ def login(request):
                     Bitacora.objects.create(usuario=perfil, accion='Ingreso al sistema', descripcion=f'Usuario {user.email} inició sesión', ip_address=ip)
                 except Exception:
                     pass
-=======
-                perfil = user.perfil 
-                perfil_serializado = UsuarioSerializer(perfil).data
->>>>>>> 1b50ad653f973c77e3353e75d9c1f1ced1141f16
             except Usuario.DoesNotExist:
                 perfil_serializado = None
 
@@ -51,6 +58,7 @@ def login(request):
         return Response(
             {"error": "Usuario no encontrado."}, status=status.HTTP_404_NOT_FOUND
         )
+
 
 
 
@@ -98,6 +106,7 @@ def register(request):
         pass
 
     return Response({"token": token.key, "user": public_user}, status=status.HTTP_201_CREATED)
+
 
 
 
