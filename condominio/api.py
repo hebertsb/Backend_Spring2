@@ -45,7 +45,9 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             perfil = None
 
         if perfil:
-            serializer = self.get_serializer(perfil)
+            # Usar el serializador público consistente con login/register
+            from authz.serializer import PublicUsuarioSerializer
+            serializer = PublicUsuarioSerializer(perfil)
             return Response(serializer.data)
 
         # Perfil no existe: devolver información pública mínima del user
