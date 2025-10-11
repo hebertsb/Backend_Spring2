@@ -8,6 +8,7 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 )
+from .api import BitacoraViewSet
 from core.views import crear_pago  # asegúrate que está bien importado
 
 router = routers.DefaultRouter()
@@ -27,6 +28,7 @@ router.register(r'rol', RolViewSet)
 router.register(r'tickets', TicketViewSet)
 router.register(r'ticket-messages', TicketMessageViewSet)
 router.register(r'notificaciones', NotificacionViewSet)
+router.register(r'bitacora', BitacoraViewSet)
 
 urlpatterns = router.urls + [
     path('crear-pago/', crear_pago, name='crear-pago'),

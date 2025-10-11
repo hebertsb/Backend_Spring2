@@ -248,6 +248,40 @@ class TicketDetailSerializer(TicketSerializer):
 
 class NotificacionSerializer(serializers.ModelSerializer):
     class Meta:
-        model = __import__("condominio.models", fromlist=["Notificacion"]).Notificacion
-        fields = ["id", "usuario", "tipo", "datos", "leida", "created_at"]
-        read_only_fields = ["id", "created_at"]
+        model = __import__('condominio.models', fromlist=['Notificacion']).Notificacion
+        fields = ['id', 'usuario', 'tipo', 'datos', 'leida', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class BitacoraSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.CharField(source='usuario.nombre', read_only=True)
+    actor_email = serializers.SerializerMethodField()
+    created_at_local = serializers.SerializerMethodField()
+
+    class Meta:
+        model = __import__('condominio.models', fromlist=['Bitacora']).Bitacora
+        # include computed fields actor_email and created_at_local in the public fields
+        fields = ['id', 'usuario', 'usuario_nombre', 'actor_email', 'accion', 'descripcion', 'ip_address', 'created_at', 'created_at_local']
+        read_only_fields = ['id', 'created_at', 'usuario_nombre', 'created_at_local', 'actor_email']
+
+    def get_actor_email(self, obj):
+        try:
+            return obj.usuario.user.email if obj.usuario and getattr(obj.usuario,'user',None) else None
+        except Exception:
+            return None
+
+    def get_created_at_local(self, obj):
+        # Convert UTC time (stored) to America/La_Paz
+        try:
+            from django.utils import timezone
+            from zoneinfo import ZoneInfo
+            utc_dt = obj.created_at
+            if utc_dt is None:
+                return None
+            if timezone.is_naive(utc_dt):
+                # assume stored as UTC
+                utc_dt = utc_dt.replace(tzinfo=ZoneInfo('UTC'))
+            local_dt = utc_dt.astimezone(ZoneInfo('America/La_Paz'))
+            return local_dt.isoformat()
+        except Exception:
+            return str(obj.created_at)

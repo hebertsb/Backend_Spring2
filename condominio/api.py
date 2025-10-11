@@ -1,4 +1,77 @@
 from rest_framework import viewsets, permissions
+from django.utils import timezone
+
+# Helper to log into Bitacora
+def log_bitacora(request, accion, descripcion=None):
+    """Create a Bitacora entry using request context (user perfil and IP).
+
+    descripcion: optional free text describing the change; if callable, it will be called
+    with the saved instance to produce a description.
+    """
+    try:
+        Bitacora = __import__('condominio.models', fromlist=['Bitacora']).Bitacora
+        # try to resolve perfil from request.user
+        perfil = None
+        user = getattr(request, 'user', None)
+        if user is not None:
+            try:
+                perfil = user.perfil
+            except Exception:
+                perfil = None
+
+        # Determine IP
+        ip = None
+        # Common headers for real client IPs behind proxies
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        if xff:
+            ip = xff.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+
+        Bitacora.objects.create(usuario=perfil, accion=accion, descripcion=(descripcion or ''), ip_address=ip)
+    except Exception:
+        # Avoid failing the main operation if logging fails
+        pass
+
+
+# Audited base viewset: automatic Bitacora entries for CRUD
+class AuditedModelViewSet(viewsets.ModelViewSet):
+    """ModelViewSet that writes Bitacora entries on create/update/destroy.
+
+    Subclasses may override or call super() for custom behavior.
+    """
+    def _make_description(self, action, instance):
+        # Default description: ModelName id=.. repr
+        try:
+            model_name = instance.__class__.__name__
+            pk = getattr(instance, 'id', None)
+            return f"{model_name} {action} id={pk}"
+        except Exception:
+            return f"{action}"
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            descripcion = self._make_description('creado', instance)
+            log_bitacora(self.request, f'Crear {instance.__class__.__name__}', descripcion)
+        except Exception:
+            pass
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        try:
+            descripcion = self._make_description('actualizado', instance)
+            log_bitacora(self.request, f'Actualizar {instance.__class__.__name__}', descripcion)
+        except Exception:
+            pass
+
+    def perform_destroy(self, instance):
+        try:
+            descripcion = self._make_description('eliminado', instance)
+            log_bitacora(self.request, f'Eliminar {instance.__class__.__name__}', descripcion)
+        except Exception:
+            pass
+        instance.delete()
 from .models import (
     Categoria, Servicio, Usuario, Campania, Cupon, Reserva, Visitante,
     ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, Reprogramacion
@@ -10,6 +83,7 @@ from .serializer import (
     ReprogramacionSerializer
 )
 from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
+from .serializer import BitacoraSerializer
 from .models import Ticket, TicketMessage, Notificacion
 from .utils import assign_agent_to_ticket
 from rest_framework import status
@@ -80,6 +154,8 @@ class CuponViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+
+
 # =====================================================
 # 🏞️ SERVICIO
 # =====================================================
@@ -89,13 +165,42 @@ class ServicioViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+
+
 # =====================================================
 # 🧾 RESERVA
 # =====================================================
-class ReservaViewSet(viewsets.ModelViewSet):
+class ReservaViewSet(AuditedModelViewSet):
     queryset = Reserva.objects.select_related('cliente', 'cupon').all()
     serializer_class = ReservaSerializer
     permission_classes = [permissions.AllowAny]
+
+    # Auditing hooks: create bitacora entries on create/update/destroy
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            # create a basic description with id and cliente
+            descripcion = f"Reserva creada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
+            log_bitacora(self.request, 'Crear Reserva', descripcion)
+        except Exception:
+            pass
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        try:
+            descripcion = f"Reserva actualizada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
+            log_bitacora(self.request, 'Actualizar Reserva', descripcion)
+        except Exception:
+            pass
+
+    def perform_destroy(self, instance):
+        try:
+            descripcion = f"Reserva eliminada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
+            # we log before deletion so we can reference instance fields
+            log_bitacora(self.request, 'Eliminar Reserva', descripcion)
+        except Exception:
+            pass
+        instance.delete()
 
 
 # =====================================================
@@ -155,7 +260,7 @@ class ReprogramacionViewSet(viewsets.ModelViewSet):
 # ==========================
 # Soporte (Tickets)
 # ==========================
-class TicketViewSet(viewsets.ModelViewSet):
+class TicketViewSet(AuditedModelViewSet):
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -234,3 +339,9 @@ class NotificacionViewSet(viewsets.ModelViewSet):
         noti.leida = True
         noti.save()
         return Response({'status': 'leida'})
+
+
+class BitacoraViewSet(viewsets.ModelViewSet):
+    queryset = __import__('condominio.models', fromlist=['Bitacora']).Bitacora.objects.all()
+    serializer_class = BitacoraSerializer
+    permission_classes = [permissions.IsAuthenticated]
