@@ -20,6 +20,12 @@ class Usuario(TimeStampedModel):
     rubro = models.CharField(max_length=100, blank=True, null=True)
     num_viajes = models.PositiveIntegerField(default=0)
     rol = models.ForeignKey(Rol, on_delete=models.SET_NULL, null=True, blank=True, related_name='usuarios')
+    # Campos opcionales solicitados por frontend
+    telefono = models.CharField(max_length=50, blank=True, null=True)
+    fecha_nacimiento = models.DateField(blank=True, null=True)
+    genero = models.CharField(max_length=5, blank=True, null=True)
+    documento_identidad = models.CharField(max_length=100, blank=True, null=True)
+    pais = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self):
         return f"{self.nombre}"

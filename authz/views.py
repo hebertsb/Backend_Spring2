@@ -1,8 +1,9 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import serializers
 
 from authz.models import Rol
-from .serializer import UserSerializer, UsuarioSerializer
+from .serializer import UserSerializer, UsuarioSerializer, RegisterSerializer, PublicUsuarioSerializer
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework import status
@@ -26,12 +27,10 @@ def login(request):
             except Usuario.DoesNotExist:
                 perfil_serializado = None
 
-            return Response(
-                {
-                    "token": token.key,
-                    "user": perfil_serializado
-                }
-            )
+            return Response({
+                "token": token.key,
+                "user": perfil_serializado
+            })
         else:
             return Response(
                 {"error": "Credenciales inválidas."},
@@ -46,50 +45,42 @@ def login(request):
 
 @api_view(["POST"])
 def register(request):
-    serializer = UserSerializer(data=request.data)
-    if serializer.is_valid():
-        email = serializer.validated_data.get("email")
-        password = serializer.validated_data["password"]
+    serializer = RegisterSerializer(data=request.data)
+    try:
+        serializer.is_valid(raise_exception=True)
+    except Exception as exc:
+        # DRF ValidationError will be returned as field-errors; keep format as dict of lists
+        errs = {}
+        if hasattr(exc, 'detail'):
+            # exc.detail may be dict or list
+            detail = exc.detail
+            if isinstance(detail, dict):
+                # ensure all values are lists of strings
+                for k, v in detail.items():
+                    if isinstance(v, list):
+                        errs[k] = [str(x) for x in v]
+                    else:
+                        errs[k] = [str(v)]
+            else:
+                errs['non_field_errors'] = [str(detail)]
+        else:
+            errs['non_field_errors'] = [str(exc)]
+        return Response(errs, status=status.HTTP_400_BAD_REQUEST)
 
-        nombre = request.data.get("nombre")
-        rubro = request.data.get("rubro")
-        rol_id = request.data.get("rol")
+    # create the perfil (RegisterSerializer.create returns Usuario profile)
+    try:
+        perfil = serializer.save()
+    except serializers.ValidationError as ve:
+        # create may raise field-specific errors (e.g., rol not found)
+        detail = ve.detail if hasattr(ve, 'detail') else {'non_field_errors': [str(ve)]}
+        return Response(detail, status=status.HTTP_400_BAD_REQUEST)
 
-        if not nombre or not rubro or not rol_id:
-            return Response(
-                {"error": "Los campos 'nombre', 'rubro' y 'rol' son obligatorios."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    # crear token y devolver el objeto público del usuario
+    token, _ = Token.objects.get_or_create(user=perfil.user)
 
-        user = User.objects.create_user(
-            username=email,
-            email=email,
-            password=password
-        )
+    public_user = PublicUsuarioSerializer(perfil).data
 
-        try:
-            rol = Rol.objects.get(pk=rol_id)
-        except Rol.DoesNotExist:
-            return Response({"error": "El rol especificado no existe."}, status=status.HTTP_400_BAD_REQUEST)
-
-        perfil = Usuario.objects.create(
-            user=user,
-            nombre=nombre,
-            rubro=rubro,
-            rol=rol,
-        )
-
-        token, _ = Token.objects.get_or_create(user=user)
-
-        return Response(
-            {
-                "token": token.key,
-                "user": UsuarioSerializer(perfil).data
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"token": token.key, "user": public_user}, status=status.HTTP_201_CREATED)
 
 
 
