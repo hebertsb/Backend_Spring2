@@ -21,7 +21,7 @@ def login(request):
             token, _ = Token.objects.get_or_create(user=user)
 
             try:
-                perfil = user.perfil  # relación OneToOne con Usuario
+                perfil = user.perfil 
                 perfil_serializado = UsuarioSerializer(perfil).data
             except Usuario.DoesNotExist:
                 perfil_serializado = None
