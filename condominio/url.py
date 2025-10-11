@@ -8,6 +8,7 @@ from .api import (
     ReprogramacionViewSet
 )
 from .api import TicketViewSet, TicketMessageViewSet, NotificacionViewSet
+from .api import BitacoraViewSet
 
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)
@@ -26,5 +27,6 @@ router.register(r'rol', RolViewSet)
 router.register(r'tickets', TicketViewSet)
 router.register(r'ticket-messages', TicketMessageViewSet)
 router.register(r'notificaciones', NotificacionViewSet)
+router.register(r'bitacora', BitacoraViewSet)
 
 urlpatterns = router.urls

@@ -79,3 +79,10 @@ Desktop.ini
 # Ignore all .txt files except requirements.txt (so only requirements.txt gets pushed)
 *.txt
 !requirements.txt
+
+# Ignore local test scripts used during development
+scripts/
+scripts/*.py
+scripts/*.ps1
+scripts/*.log
+scripts/*.tmp

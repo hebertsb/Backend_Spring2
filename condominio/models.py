@@ -259,3 +259,21 @@ class Notificacion(TimeStampedModel):
 
     def __str__(self):
         return f"Notificación #{self.id} -> {self.usuario.nombre} ({self.tipo})"
+
+
+# ======================================
+# Bitacora / Log de acciones
+# ======================================
+class Bitacora(TimeStampedModel):
+    """Registro de acciones realizadas en el sistema.
+    Guarda referencia al perfil (Usuario) cuando aplica, la accion, descripcion libre,
+    y la IP de la máquina que realizó la acción.
+    """
+    usuario = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='bitacoras')
+    accion = models.CharField(max_length=150)
+    descripcion = models.TextField(blank=True, null=True)
+    ip_address = models.CharField(max_length=45, blank=True, null=True)
+
+    def __str__(self):
+        who = self.usuario.nombre if self.usuario else 'Anon'
+        return f"{self.created_at.isoformat()} - {who} - {self.accion}"
