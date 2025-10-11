@@ -1,3 +1,28 @@
-from django.shortcuts import render
+import stripe
+from django.conf import settings
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
-# Create your views here.
+@api_view(["POST"])
+def crear_pago(request):
+    try:
+        # Cargar clave desde settings
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        amount = request.data.get("amount")
+        currency = request.data.get("currency", "usd")
+        description = request.data.get("description", "Pago de servicio")
+
+        intent = stripe.PaymentIntent.create(
+            amount=int(amount),
+            currency=currency,
+            description=description,
+            automatic_payment_methods={"enabled": True},
+        )
+
+        return Response({
+            "clientSecret": intent.client_secret
+        })
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)

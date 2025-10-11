@@ -90,7 +90,12 @@
       "nombre": "Ana García",
       "rubro": "Turismo",
       "num_viajes": 15,
-      "rol_id": 1
+      "rol": 1,
+      "telefono": "+59170000001",
+      "fecha_nacimiento": "1990-04-12",
+      "genero": "F",
+      "documento_identidad": "5678912 LP",
+      "pais": "Bolivia"
     }
   },
 
@@ -114,7 +119,12 @@
       "nombre": "Carlos Méndez",
       "rubro": "Transporte",
       "num_viajes": 45,
-      "rol_id": 3
+      "rol": 3,
+      "telefono": "+59170000002",
+      "fecha_nacimiento": "1985-09-23",
+      "genero": "M",
+      "documento_identidad": "4567890 CB",
+      "pais": "Bolivia"
     }
   },
 
@@ -138,7 +148,12 @@
       "nombre": "Lucía Fernández",
       "rubro": "Salud",
       "num_viajes": 5,
-      "rol_id": 2
+      "rol": 2,
+      "telefono": "+59170000003",
+      "fecha_nacimiento": "1995-07-18",
+      "genero": "F",
+      "documento_identidad": "7890123 SC",
+      "pais": "Bolivia"
     }
   },
   {
@@ -548,140 +563,170 @@
     "model": "condominio.servicio",
     "pk": 1,
     "fields": {
-      "titulo": "Tour por la Ciudad",
-      "descripcion": "Recorrido guiado por el centro histórico.",
-      "duracion": "3h",
-      "capacidad_max": 15,
-      "punto_encuentro": "Plaza Bolívar",
+      "titulo": "Salar de Uyuni",
+      "descripcion": "Tour al majestuoso desierto de sal más grande del mundo.",
+      "duracion": "8h",
+      "capacidad_max": 20,
+      "punto_encuentro": "Plaza Principal de Uyuni",
       "estado": "Activo",
       "categoria": 1,
-      "proveedor": 1
+      "proveedor": 1,
+      "imagen_url": "https://images.pexels.com/photos/17507607/pexels-photo-17507607.jpeg",
+      "precio_usd": 250.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 2,
     "fields": {
-      "titulo": "Ruta Gastronómica",
-      "descripcion": "Degustación de platos típicos locales.",
-      "duracion": "2.5h",
-      "capacidad_max": 10,
-      "punto_encuentro": "Mercado Principal",
+      "titulo": "Isla del Sol",
+      "descripcion": "Recorrido cultural y paisajístico por la mítica Isla del Sol.",
+      "duracion": "6h",
+      "capacidad_max": 15,
+      "punto_encuentro": "Puerto de Copacabana",
       "estado": "Activo",
       "categoria": 2,
-      "proveedor": 2
+      "proveedor": 2,
+      "imagen_url": "https://images.pexels.com/photos/17895232/pexels-photo-17895232.jpeg",
+      "precio_usd": 180.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 3,
     "fields": {
-      "titulo": "Senderismo en el Cerro",
-      "descripcion": "Caminata ecológica en el parque nacional.",
+      "titulo": "Tiwanaku",
+      "descripcion": "Visita arqueológica al complejo precolombino más importante de Bolivia.",
       "duracion": "4h",
-      "capacidad_max": 20,
-      "punto_encuentro": "Entrada al Parque",
-      "estado": "Inactivo",
+      "capacidad_max": 25,
+      "punto_encuentro": "Museo Nacional de Arqueología",
+      "estado": "Activo",
       "categoria": 3,
-      "proveedor": 3
+      "proveedor": 3,
+      "imagen_url": "https://images.pexels.com/photos/19032101/pexels-photo-19032101.jpeg",
+      "precio_usd": 90.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 4,
     "fields": {
-      "titulo": "Paseo en Bicicleta",
-      "descripcion": "Recorrido urbano en bicicleta.",
-      "duracion": "2h",
-      "capacidad_max": 12,
-      "punto_encuentro": "Plaza Mayor",
+      "titulo": "Cristo de la Concordia",
+      "descripcion": "Excursión al monumento más icónico de Cochabamba con vistas panorámicas.",
+      "duracion": "3h",
+      "capacidad_max": 15,
+      "punto_encuentro": "Teleférico Cristo",
       "estado": "Activo",
       "categoria": 1,
-      "proveedor": 1
+      "proveedor": 1,
+      "imagen_url": "https://images.pexels.com/photos/15013675/pexels-photo-15013675.jpeg",
+      "precio_usd": 60.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 5,
     "fields": {
-      "titulo": "Taller de Cocina",
-      "descripcion": "Aprende a preparar arepas y platos típicos.",
-      "duracion": "3h",
-      "capacidad_max": 8,
-      "punto_encuentro": "Casa Cultural",
+      "titulo": "Laguna Colorada",
+      "descripcion": "Exploración fotográfica de la espectacular laguna de tonalidades rojas.",
+      "duracion": "7h",
+      "capacidad_max": 12,
+      "punto_encuentro": "Reserva Eduardo Avaroa",
       "estado": "Activo",
       "categoria": 2,
-      "proveedor": 2
+      "proveedor": 2,
+      "imagen_url": "https://images.pexels.com/photos/7124359/pexels-photo-7124359.jpeg",
+      "precio_usd": 210.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 6,
     "fields": {
-      "titulo": "Tour Fotográfico",
-      "descripcion": "Descubre los mejores paisajes para tus fotos.",
-      "duracion": "3.5h",
+      "titulo": "Camino de la Muerte",
+      "descripcion": "Aventura extrema por la carretera más peligrosa y famosa del mundo.",
+      "duracion": "6h",
       "capacidad_max": 10,
-      "punto_encuentro": "Mirador Central",
+      "punto_encuentro": "Terminal de Yungas",
       "estado": "Activo",
-      "categoria": 8,
-      "proveedor": 3
+      "categoria": 3,
+      "proveedor": 3,
+      "imagen_url": "https://media.istockphoto.com/id/499536590/es/foto/viajes-de-aventura-en-carretera-de-monta%C3%B1a-en-descenso-de-la-muerte.jpg?s=612x612&w=0&k=20&c=Eo6jQdoe5n2HkXaW6z40WcWxSjRV3ODLjQqL--gYSTM=",
+      "precio_usd": 150.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 7,
     "fields": {
-      "titulo": "Caminata Nocturna",
-      "descripcion": "Explora la ciudad bajo las estrellas.",
-      "duracion": "2h",
-      "capacidad_max": 20,
-      "punto_encuentro": "Puente Viejo",
+      "titulo": "Coroico",
+      "descripcion": "Escapada tropical con cascadas y paisajes exuberantes en los Yungas.",
+      "duracion": "5h",
+      "capacidad_max": 18,
+      "punto_encuentro": "Plaza Principal de Coroico",
       "estado": "Activo",
       "categoria": 4,
-      "proveedor": 1
+      "proveedor": 1,
+      "imagen_url": "https://media.istockphoto.com/id/859293544/es/foto/niebla-de-la-ma%C3%B1ana-sobre-el-camino-de-la-muerte-en-los-yungas-de-bolivia.jpg?s=612x612&w=0&k=20&c=WXPBBZhAKcy-cqtf-X8OsaaD1a0taHEB6mGRuu9E_MA=",
+      "precio_usd": 120.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 8,
     "fields": {
-      "titulo": "Clases de Yoga",
-      "descripcion": "Sesión de relajación en la playa.",
-      "duracion": "1.5h",
-      "capacidad_max": 15,
-      "punto_encuentro": "Playa Central",
+      "titulo": "Samaipata",
+      "descripcion": "Tour cultural y arqueológico al Fuerte de Samaipata y sus paisajes naturales.",
+      "duracion": "6h",
+      "capacidad_max": 20,
+      "punto_encuentro": "Plaza 24 de Septiembre, Santa Cruz",
       "estado": "Activo",
-      "categoria": 9,
-      "proveedor": 2
+      "categoria": 5,
+      "proveedor": 2,
+      "imagen_url": "https://images.pexels.com/photos/11396013/pexels-photo-11396013.jpeg",
+      "precio_usd": 170.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 9,
     "fields": {
-      "titulo": "Tour Educativo",
-      "descripcion": "Visita guiada por museos históricos.",
-      "duracion": "2h",
-      "capacidad_max": 25,
-      "punto_encuentro": "Museo Nacional",
+      "titulo": "Parque Nacional Madidi",
+      "descripcion": "Experiencia ecológica en una de las reservas más biodiversas del planeta.",
+      "duracion": "9h",
+      "capacidad_max": 15,
+      "punto_encuentro": "Puerto de Rurrenabaque",
       "estado": "Activo",
-      "categoria": 10,
-      "proveedor": 3
+      "categoria": 6,
+      "proveedor": 3,
+      "imagen_url": "https://media.istockphoto.com/id/2010206051/es/foto/el-parque-nacional-madidi-en-bolivia.jpg?s=612x612&w=0&k=20&c=uKx8nc5iqYQp_ygMQMqkum7l8UDyjj2RAXfcA3FVOk8=",
+      "precio_usd": 300.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {
     "model": "condominio.servicio",
     "pk": 10,
     "fields": {
-      "titulo": "Excursión a la Montaña",
-      "descripcion": "Disfruta de un día de senderismo extremo.",
-      "duracion": "6h",
-      "capacidad_max": 12,
-      "punto_encuentro": "Terminal Norte",
+      "titulo": "Ciudad Blanca de Sucre",
+      "descripcion": "Recorrido histórico por la capital constitucional de Bolivia y sus museos.",
+      "duracion": "5h",
+      "capacidad_max": 20,
+      "punto_encuentro": "Plaza 25 de Mayo, Sucre",
       "estado": "Activo",
-      "categoria": 1,
-      "proveedor": 1
+      "categoria": 7,
+      "proveedor": 1,
+      "imagen_url": "https://media.istockphoto.com/id/859293856/es/foto/paisaje-de-sucre-y-san-felipe-neri-en-bolivia.jpg?b=1&s=612x612&w=0&k=20&c=JKwqJXeE1jVeKMlXNLNRGLzn8uMybShNpP4nQ3bSFiE=",
+      "precio_usd": 100.0,
+      "servicios_incluidos": ["Guía", "Transporte", "Hotel"]
     }
   },
   {

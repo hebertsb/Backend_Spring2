@@ -22,6 +22,7 @@ def login(request):
             token, _ = Token.objects.get_or_create(user=user)
 
             try:
+<<<<<<< HEAD
                 perfil = user.perfil  # relación OneToOne con Usuario
                 perfil_serializado = PublicUsuarioSerializer(perfil).data
                 # registrar en bitacora: ingreso al sistema
@@ -30,6 +31,10 @@ def login(request):
                     Bitacora.objects.create(usuario=perfil, accion='Ingreso al sistema', descripcion=f'Usuario {user.email} inició sesión', ip_address=ip)
                 except Exception:
                     pass
+=======
+                perfil = user.perfil 
+                perfil_serializado = UsuarioSerializer(perfil).data
+>>>>>>> 1b50ad653f973c77e3353e75d9c1f1ced1141f16
             except Usuario.DoesNotExist:
                 perfil_serializado = None
 

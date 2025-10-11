@@ -114,23 +114,45 @@ class ReservaVisitante(TimeStampedModel):
 # ======================================
 # 🏞️ SERVICIO
 # ======================================
+
+
 class Servicio(TimeStampedModel):
     ESTADOS = [
         ('Activo', 'Activo'),
         ('Inactivo', 'Inactivo'),
     ]
 
-    titulo = models.CharField(max_length=150)
+    titulo = models.CharField(max_length=255)
     descripcion = models.TextField()
     duracion = models.CharField(max_length=50)
-    capacidad_max = models.PositiveIntegerField()
-    punto_encuentro = models.CharField(max_length=150)
+    capacidad_max = models.IntegerField()
+    punto_encuentro = models.CharField(max_length=255)
     estado = models.CharField(max_length=10, choices=ESTADOS, default='Activo')
-    categoria = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, related_name='servicios')
-    proveedor = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, related_name='servicios_proveidos')
+    categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE, null=True, blank=True)
+    proveedor = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)
+
+    imagen_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL de la imagen representativa del servicio"
+    )
+    precio_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Precio en dólares del servicio"
+    )
+    servicios_incluidos = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de servicios incluidos (ej: Guía, Transporte, Hotel)"
+    )
 
     def __str__(self):
         return self.titulo
+
+
 
 
 # ======================================

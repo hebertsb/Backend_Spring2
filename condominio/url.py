@@ -1,3 +1,4 @@
+from django.urls import path
 from rest_framework import routers
 
 from authz.api import RolViewSet
@@ -5,10 +6,14 @@ from .api import (
     CategoriaViewSet, ServicioViewSet, UsuarioViewSet, CampaniaViewSet,
     CuponViewSet, ReservaViewSet, VisitanteViewSet, ReservaVisitanteViewSet,
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
-    ReprogramacionViewSet
+    ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 )
+<<<<<<< HEAD
 from .api import TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 from .api import BitacoraViewSet
+=======
+from core.views import crear_pago  # asegúrate que está bien importado
+>>>>>>> 1b50ad653f973c77e3353e75d9c1f1ced1141f16
 
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)
@@ -29,4 +34,6 @@ router.register(r'ticket-messages', TicketMessageViewSet)
 router.register(r'notificaciones', NotificacionViewSet)
 router.register(r'bitacora', BitacoraViewSet)
 
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    path('crear-pago/', crear_pago, name='crear-pago'),
+]
