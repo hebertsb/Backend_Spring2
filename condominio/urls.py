@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework import routers
 
 from authz.api import RolViewSet
@@ -32,4 +32,6 @@ router.register(r'bitacora', BitacoraViewSet)
 
 urlpatterns = router.urls + [
     path('crear-pago/', crear_pago, name='crear-pago'),
+
+     path('backups/', include('condominio.backups.urls')),
 ]
