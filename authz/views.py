@@ -30,6 +30,9 @@ def login(request):
     password = request.data.get("password")
     try:
         user = User.objects.get(email=email)
+        # Rechazar login si el usuario está inactivo
+        if not user.is_active:
+            return Response({"error": "Usuario inactivo."}, status=status.HTTP_403_FORBIDDEN)
         if user.check_password(password):
             token, _ = Token.objects.get_or_create(user=user)
 

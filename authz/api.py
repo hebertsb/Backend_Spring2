@@ -176,3 +176,33 @@ class RolViewSet(viewsets.ModelViewSet):
     queryset = Rol.objects.all()
     serializer_class = RolSerializer
     permission_classes = [permissions.AllowAny]
+
+
+class SetUserActiveView(APIView):
+    permission_classes = [IsAuthenticated,]
+
+    def patch(self, request, pk):
+        # Permitir solo admins o usuarios con auth.change_user
+        if not (request.user.is_superuser or request.user.has_perm('auth.change_user') or request.user.is_staff):
+            return Response({'detail': 'No autorizado'}, status=403)
+        user = get_object_or_404(User, pk=pk)
+        is_active = request.data.get('is_active')
+        if is_active is None:
+            return Response({'detail': 'is_active required'}, status=400)
+        user.is_active = bool(is_active)
+        user.save()
+        # revoke tokens if being disabled
+        if not user.is_active:
+            try:
+                from rest_framework.authtoken.models import Token
+                Token.objects.filter(user=user).delete()
+            except Exception:
+                pass
+        # log bitacora
+        try:
+            perfil = getattr(user, 'perfil', None)
+            accion = 'HABILITAR_USUARIO' if user.is_active else 'INACTIVAR_USUARIO'
+            Bitacora.objects.create(usuario=perfil, accion=accion, descripcion=f'Usuario {user.email} {"habilitado" if user.is_active else "inhabilitado"} por {request.user.email}', ip_address=request.META.get('REMOTE_ADDR'))
+        except Exception:
+            pass
+        return Response({'id': user.id, 'is_active': user.is_active})

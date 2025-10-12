@@ -17,4 +17,5 @@ urlpatterns = [
     path('users/<int:pk>/roles/<role_slug>/', api.UserRolesView.as_view(), name='user-role-delete'),
     path('users/', api.UsersListView.as_view(), name='users-list'),
     path('users/<int:pk>/', api.UserDetailView.as_view(), name='user-detail'),
+    path('users/<int:pk>/active/', api.SetUserActiveView.as_view(), name='user-set-active'),
 ]
