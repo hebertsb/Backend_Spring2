@@ -44,10 +44,14 @@ class UserRoleSerializer(serializers.ModelSerializer):
 class UserWithRolesSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
+    # Expose first_name and last_name so frontends can prefill edit forms without parsing full_name
+    first_name = serializers.CharField(read_only=True)
+    last_name = serializers.CharField(read_only=True)
+    is_active = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'full_name', 'roles']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'roles', 'is_active']
 
     def get_roles(self, obj):
         return list(obj.user_roles.values_list('rol__slug', flat=True))
@@ -63,6 +67,10 @@ class UserWithRolesSerializer(serializers.ModelSerializer):
         if perfil and getattr(perfil, 'nombre', None):
             return perfil.nombre
         return ''
+
+    def get_is_active(self, obj):
+        # expose the user's is_active directly
+        return bool(obj.is_active)
 
 
 
@@ -82,6 +90,7 @@ class PublicUsuarioSerializer(serializers.ModelSerializer):
     rol = RolSerializer(read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
+    is_active = serializers.SerializerMethodField()
 
     telefono = serializers.CharField(read_only=True, allow_null=True)
     fecha_nacimiento = serializers.DateField(read_only=True, allow_null=True)
@@ -91,7 +100,65 @@ class PublicUsuarioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'email', 'nombre', 'rol', 'num_viajes', 'telefono', 'fecha_nacimiento', 'genero', 'documento_identidad', 'pais']
+        fields = ['id', 'username', 'email', 'nombre', 'rol', 'num_viajes', 'telefono', 'fecha_nacimiento', 'genero', 'documento_identidad', 'pais', 'is_active']
+
+    def get_is_active(self, obj):
+        return bool(obj.user.is_active)
+
+
+class MeSerializer(serializers.ModelSerializer):
+    """Serializador usado por /api/users/me/ para leer y actualizar el perfil propio.
+    Permite modificar campos de Usuario y algunos campos del User (first_name, last_name, email opcional).
+    """
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', required=False)
+    first_name = serializers.CharField(source='user.first_name', required=False, allow_blank=True)
+    last_name = serializers.CharField(source='user.last_name', required=False, allow_blank=True)
+    is_active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Usuario
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'nombre', 'rol', 'num_viajes', 'telefono', 'fecha_nacimiento', 'genero', 'documento_identidad', 'pais', 'is_active']
+
+    def get_is_active(self, obj):
+        return bool(obj.user.is_active)
+
+    def update(self, instance, validated_data):
+        # update nested user fields if provided. Some frontends send nested `user` payload
+        # but because first_name/last_name are declared with source='user.first_name' they
+        # may not appear in validated_data; fall back to initial_data to accept nested form.
+        user_data = validated_data.pop('user', {})
+        if not user_data and hasattr(self, 'initial_data'):
+            user_data = self.initial_data.get('user', {}) or {}
+        user = instance.user
+        # email change: validate uniqueness
+        new_email = user_data.get('email')
+        if new_email and new_email != user.email:
+            if User.objects.filter(email=new_email).exclude(pk=user.pk).exists():
+                raise serializers.ValidationError({'email': ['Este correo ya está en uso.']})
+            user.email = new_email
+            user.username = new_email
+        # track name updates
+        first_updated = 'first_name' in user_data
+        last_updated = 'last_name' in user_data
+        if first_updated:
+            user.first_name = user_data.get('first_name') or ''
+        if last_updated:
+            user.last_name = user_data.get('last_name') or ''
+        user.save()
+
+        # If payload didn't explicitly include 'nombre', keep Usuario.nombre in sync with User first/last
+        if ('nombre' not in validated_data) and (first_updated or last_updated):
+            full = f"{user.first_name or ''} {user.last_name or ''}".strip()
+            # only overwrite if there's something to write
+            if full:
+                validated_data['nombre'] = full
+
+        # update perfil fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
 class RegisterSerializer(serializers.Serializer):
