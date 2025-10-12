@@ -6,7 +6,10 @@ import subprocess
 import zipfile
 import argparse
 import sys
+from condominio.backups.upload_dropbox import upload_to_dropbox
+from dotenv import load_dotenv  # ✅ NUEVO
 
+load_dotenv()  # ✅ Carga variables desde .env
 # ---------------------------
 # Configuración de rutas
 # ---------------------------
@@ -107,11 +110,22 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
             for file in files:
                 file_path = Path(root) / file
                 zipf.write(file_path, file_path.relative_to(temp_backup_dir))
-    print(f"✅ Backup completo comprimido en: {zip_file}")
+        print(f"✅ Backup completo comprimido en: {zip_file}")
 
-    # Limpiar carpeta temporal
-    shutil.rmtree(temp_backup_dir)
-    print("🧹 Carpeta temporal eliminada. Backup finalizado con éxito.")
+    # ☁️ Subida automática a Dropbox
+    try:
+        upload_to_dropbox(zip_file)
+        print("📤 Backup subido correctamente a Dropbox.")
+    except Exception as e:
+        print(f"⚠️ Error al subir a Dropbox: {e}")
+
+    # 🧹 Limpiar carpeta temporal
+    try:
+        shutil.rmtree(temp_backup_dir)
+        print("🧹 Carpeta temporal eliminada. Backup finalizado con éxito.")
+    except Exception as e:
+        print(f"⚠️ No se pudo eliminar carpeta temporal: {e}")
+
 
 # ---------------------------
 # Ejecución desde CLI
