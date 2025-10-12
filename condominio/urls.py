@@ -34,4 +34,5 @@ urlpatterns = router.urls + [
     path('crear-pago/', crear_pago, name='crear-pago'),
 
      path('backups/', include('condominio.backups.urls')),
+  
 ]
