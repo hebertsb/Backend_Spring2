@@ -10,6 +10,8 @@ from .utils import BACKUP_DIR
 from condominio.backups.restore_backup import restore_backup
 from condominio.backups.utils import BACKUP_DIR
 from pathlib import Path
+from .upload_dropbox import upload_to_dropbox, list_backups_dropbox, download_from_dropbox
+
 
 #BACKUP_DIR = os.path.join(settings.BASE_DIR, 'condominio', 'backups')
 # Crear carpeta si no existe
@@ -148,5 +150,52 @@ def eliminar_backup(request, filename):
     try:
         os.remove(file_path)
         return JsonResponse({'message': f'Backup {filename} eliminado correctamente'})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+##### para dropbox ###
+@api_view(['GET'])
+def listar_backups_dropbox(request):
+    """Lista los backups almacenados en Dropbox."""
+    try:
+        files = list_backups_dropbox()
+        return JsonResponse({'backups': files})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+def restaurar_desde_dropbox(request):
+    """
+    Restaura un backup alojado en Dropbox.
+    Espera un JSON con:
+    {
+        "filename": "full_backup_20251011_180130.zip",
+        "type": "total" | "base" | "backend" | "frontend"
+    }
+    """
+    filename = request.data.get('filename')
+    restore_type = request.data.get('type', 'total').lower()
+
+    if not filename:
+        return JsonResponse({'error': 'Debe especificar el nombre del backup (filename)'}, status=400)
+
+    try:
+        # Descargar desde Dropbox al directorio local
+        local_path = download_from_dropbox(filename, BACKUP_DIR)
+
+        # Determinar qué restaurar
+        restore_code = restore_type in ('total', 'backend', 'frontend')
+        restore_db = restore_type in ('total', 'base')
+
+        # Ejecutar restauración
+        result = restore_backup(Path(local_path), restore_code=restore_code, restore_db=restore_db)
+
+        return JsonResponse({
+            'message': f"Backup '{filename}' restaurado como tipo '{restore_type}'",
+            'result': result
+        })
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
