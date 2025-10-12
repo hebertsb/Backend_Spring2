@@ -5,13 +5,11 @@ from . import api
 
 
 urlpatterns = [
-    # auth actions
-    path('login/', views.login),
-    path('register/', views.register),
-    path('perfil/', views.perfil),
+    path('login/',views.login),
+    path('register/',views.register),
+    path('perfil/',views.perfil),
     path('logout/', views.logout),
-
-    # compatibility/user management endpoints (English aliases)
+    # Roles and user role management
     path('roles/', api.RolViewSet.as_view({'get': 'list'}), name='roles-list'),
     path('users/<int:pk>/roles/', api.UserRolesView.as_view(), name='user-roles'),
     path('users/<int:pk>/roles/<role_slug>/', api.UserRolesView.as_view(), name='user-role-delete'),
