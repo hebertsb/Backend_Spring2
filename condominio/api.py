@@ -1,5 +1,7 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
 from django.utils import timezone
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from django_filters.rest_framework import DjangoFilterBackend
 
 # Helper to safely get perfil from user
 def get_user_perfil(user):
@@ -142,9 +144,25 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 # 🎯 CAMPAÑA
 # =====================================================
 class CampaniaViewSet(viewsets.ModelViewSet):
-    queryset = Campania.objects.all()
+    """
+    CRUD de campañas de descuento.
+    """
+    queryset = Campania.objects.all().order_by('-created_at')
     serializer_class = CampaniaSerializer
     permission_classes = [permissions.AllowAny]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ["descripcion"]
+    filterset_fields = ["tipo_descuento"]
+
+    @action(detail=True, methods=["get"])
+    def servicios(self, request, pk=None):
+        """
+        Retorna los servicios asociados a esta campaña.
+        """
+        campania = self.get_object()
+        relaciones = CampaniaServicio.objects.filter(campania=campania).select_related("servicio")
+        serializer = CampaniaServicioSerializer(relaciones, many=True)
+        return Response(serializer.data)
 
 
 # =====================================================
@@ -263,9 +281,30 @@ class ReservaVisitanteViewSet(viewsets.ModelViewSet):
 # 🔗 CAMPAÑA_SERVICIO
 # =====================================================
 class CampaniaServicioViewSet(viewsets.ModelViewSet):
-    queryset = CampaniaServicio.objects.select_related('servicio', 'campania').all()
+    """
+    CRUD para las relaciones entre campañas y servicios.
+    """
+    queryset = CampaniaServicio.objects.select_related("campania", "servicio").order_by('-created_at')
     serializer_class = CampaniaServicioSerializer
     permission_classes = [permissions.AllowAny]
+   
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["campania", "servicio"]
+
+    def get_queryset(self):
+        """
+        Permite filtrar por campania_id o servicio_id.
+        """
+        queryset = super().get_queryset()
+        campania_id = self.request.query_params.get("campania_id")
+        servicio_id = self.request.query_params.get("servicio_id")
+
+        if campania_id:
+            queryset = queryset.filter(campania_id=campania_id)
+        if servicio_id:
+            queryset = queryset.filter(servicio_id=servicio_id)
+
+        return queryset
 
 
 # =====================================================

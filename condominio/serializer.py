@@ -48,7 +48,18 @@ class CampaniaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Campania
         fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, data):
+        fecha_inicio = data.get("fecha_inicio", getattr(self.instance, "fecha_inicio", None))
+        fecha_fin = data.get("fecha_fin", getattr(self.instance, "fecha_fin", None))
+        monto = data.get("monto", getattr(self.instance, "monto", None))
+
+        if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
+            raise serializers.ValidationError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+        if monto is not None and monto <= 0:
+            raise serializers.ValidationError("El monto de descuento debe ser mayor que cero.")
+        return data
 
 
 # =====================================================
@@ -204,17 +215,36 @@ class ReservaVisitanteSerializer(serializers.ModelSerializer):
 class CampaniaServicioSerializer(serializers.ModelSerializer):
     servicio = ServicioSerializer(read_only=True)
     servicio_id = serializers.PrimaryKeyRelatedField(
-        queryset=Servicio.objects.all(), source="servicio", write_only=True
+        queryset=Servicio.objects.all(),
+        source="servicio",
+        write_only=True
     )
     campania = CampaniaSerializer(read_only=True)
     campania_id = serializers.PrimaryKeyRelatedField(
-        queryset=Campania.objects.all(), source="campania", write_only=True
+        queryset=Campania.objects.all(),
+        source="campania",
+        write_only=True
     )
 
     class Meta:
         model = CampaniaServicio
-        fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "servicio",
+            "servicio_id",
+            "campania",
+            "campania_id",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, data):
+        servicio = data.get("servicio")
+        campania = data.get("campania")
+        if CampaniaServicio.objects.filter(servicio=servicio, campania=campania).exists():
+            raise serializers.ValidationError("Esta relación de servicio y campaña ya existe.")
+        return data
 
 
 # =====================================================

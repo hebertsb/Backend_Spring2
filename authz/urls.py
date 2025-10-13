@@ -18,4 +18,7 @@ urlpatterns = [
     path('users/', api.UsersListView.as_view(), name='users-list'),
     path('users/<int:pk>/', api.UserDetailView.as_view(), name='user-detail'),
     path('users/<int:pk>/active/', api.SetUserActiveView.as_view(), name='user-set-active'),
+    path('users/me/', api.MeView.as_view(), name='user-me'),
+    # compatibility Spanish path used by older frontend
+    path('usuarios/<int:pk>/editar-datos/', api.UserDetailView.as_view(), name='usuario-editar-datos'),
 ]

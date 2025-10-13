@@ -11,6 +11,7 @@ from authz.models import Rol, UserRole
 from authz.serializer import RolSerializer
 from django.contrib.auth.models import User
 from condominio.models import Bitacora, Usuario
+from authz.serializer import MeSerializer
 
 from django.contrib.auth.models import User
 from authz.serializer import UserWithRolesSerializer
@@ -51,7 +52,53 @@ class UserDetailView(APIView):
 
     def get(self, request, pk):
         user = get_object_or_404(User, pk=pk)
-        serializer = UserWithRolesSerializer(user)
+        # If a Usuario profile exists, return the profile representation (same shape as /api/users/me/)
+        try:
+            perfil = user.perfil
+            serializer = MeSerializer(perfil)
+            return Response(serializer.data)
+        except Usuario.DoesNotExist:
+            # fallback to previous user-only serializer
+            serializer = UserWithRolesSerializer(user)
+            return Response(serializer.data)
+
+    def patch(self, request, pk):
+        # Allow admins (or users with change permission) to partially update another user's profile
+        user = get_object_or_404(User, pk=pk)
+        try:
+            perfil = user.perfil
+        except Usuario.DoesNotExist:
+            # create perfil if missing
+            perfil = Usuario.objects.create(user=user)
+        serializer = MeSerializer(perfil, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        # Accept PUT from older frontends; treat as partial update for compatibility
+        return self.patch(request, pk)
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            perfil = request.user.perfil
+        except Usuario.DoesNotExist:
+            return Response(status=404)
+        serializer = MeSerializer(perfil)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        try:
+            perfil = request.user.perfil
+        except Usuario.DoesNotExist:
+            return Response(status=404)
+        serializer = MeSerializer(perfil, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
 
 
