@@ -3,9 +3,10 @@ from rest_framework import routers
 
 from authz.api import RolViewSet
 from .api import (
-    CategoriaViewSet, ServicioViewSet, UsuarioViewSet, CampaniaViewSet,
+    CategoriaViewSet, ServicioViewSet, UsuarioViewSet, CampaniaViewSet, PaqueteViewSet,
     CuponViewSet, ReservaViewSet, VisitanteViewSet, ReservaVisitanteViewSet,
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
+    HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet
 )
 from .api import BitacoraViewSet
@@ -16,6 +17,7 @@ router.register(r'categorias', CategoriaViewSet)
 router.register(r'servicios', ServicioViewSet)
 router.register(r'usuarios', UsuarioViewSet)
 router.register(r'campanias', CampaniaViewSet)
+router.register(r'paquetes', PaqueteViewSet, basename='paquete')
 router.register(r'cupones', CuponViewSet)
 router.register(r'reservas', ReservaViewSet)
 router.register(r'visitantes', VisitanteViewSet)
@@ -28,6 +30,8 @@ router.register(r'rol', RolViewSet)
 router.register(r'tickets', TicketViewSet)
 router.register(r'ticket-messages', TicketMessageViewSet)
 router.register(r'notificaciones', NotificacionViewSet)
+router.register(r'historial-reprogramacion', HistorialReprogramacionViewSet)
+router.register(r'configuracion-global-reprogramacion', ConfiguracionGlobalReprogramacionViewSet)
 router.register(r'bitacora', BitacoraViewSet)
 
 urlpatterns = router.urls + [

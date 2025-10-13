@@ -86,3 +86,17 @@ scripts/*.py
 scripts/*.ps1
 scripts/*.log
 scripts/*.tmp
+
+# ======================================
+# 🧪 PRUEBAS Y TESTING
+# ======================================
+# Carpeta de pruebas de Postman (no subir al repositorio)
+pruebas_postman/
+pruebas_postman/**/*
+*.postman_collection.json
+*.postman_environment.json
+
+# Archivos de prueba locales
+test_*.json
+prueba_*.json
+*_test.json

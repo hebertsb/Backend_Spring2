@@ -12,6 +12,8 @@ from .models import (
     CampaniaServicio,
     Pago,
     ReglaReprogramacion,
+    HistorialReprogramacion,
+    ConfiguracionGlobalReprogramacion,
     Reprogramacion,
 )
 
@@ -47,6 +49,66 @@ class CampaniaSerializer(serializers.ModelSerializer):
         model = Campania
         fields = "__all__"
         read_only_fields = ["id", "created_at"]
+
+
+# =====================================================
+# 📦 PAQUETE COMPLETO (Campaña + Servicios)
+# =====================================================
+class PaqueteCompletoSerializer(serializers.ModelSerializer):
+    """Serializer para mostrar paquetes completos con servicios incluidos"""
+    servicios_incluidos = serializers.SerializerMethodField()
+    cupones_disponibles = serializers.SerializerMethodField()
+    precio_total_servicios = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Campania
+        fields = "__all__" 
+        read_only_fields = ["id", "created_at"]
+    
+    def get_servicios_incluidos(self, obj):
+        """Obtiene todos los servicios incluidos en esta campaña/paquete"""
+        from .models import CampaniaServicio
+        campania_servicios = CampaniaServicio.objects.filter(campania=obj).select_related('servicio__categoria')
+        return [
+            {
+                'id': cs.servicio.pk,
+                'titulo': cs.servicio.titulo,
+                'descripcion': cs.servicio.descripcion,
+                'duracion': cs.servicio.duracion,
+                'capacidad_max': cs.servicio.capacidad_max,
+                'punto_encuentro': cs.servicio.punto_encuentro,
+                'precio_usd': float(cs.servicio.precio_usd),
+                'categoria': cs.servicio.categoria.nombre if cs.servicio.categoria else None,
+                'imagen_url': cs.servicio.imagen_url,
+                'estado': cs.servicio.estado,
+                'servicios_incluidos': cs.servicio.servicios_incluidos
+            }
+            for cs in campania_servicios
+        ]
+    
+    def get_cupones_disponibles(self, obj):
+        """Obtiene cupones disponibles para esta campaña"""
+        from django.db import models
+        cupones = obj.cupones.filter(nro_usos__lt=models.F('cantidad_max'))
+        return [
+            {
+                'id': cupon.pk,
+                'usos_restantes': cupon.cantidad_max - cupon.nro_usos,
+                'cantidad_max': cupon.cantidad_max,
+                'nro_usos': cupon.nro_usos
+            }
+            for cupon in cupones
+        ]
+    
+    def get_precio_total_servicios(self, obj):
+        """Calcula precio total de servicios incluidos en USD"""
+        from .models import CampaniaServicio
+        campania_servicios = CampaniaServicio.objects.filter(campania=obj).select_related('servicio')
+        total_usd = sum(cs.servicio.precio_usd for cs in campania_servicios)
+        return {
+            'total_usd': float(total_usd),
+            'cantidad_servicios': len(campania_servicios)
+        }
 
 
 # =====================================================
@@ -99,11 +161,12 @@ class ReservaSerializer(serializers.ModelSerializer):
         required=False, 
         allow_null=True, 
     )
+    reprogramado_por_nombre = serializers.CharField(source='reprogramado_por.nombre', read_only=True)
 
     class Meta:
         model = Reserva
         fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "codigo", "reprogramado_por_nombre", "numero_reprogramaciones", "fecha_reprogramacion", "created_at", "updated_at"]
 
 
 # =====================================================
@@ -176,22 +239,44 @@ class ReglaReprogramacionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReglaReprogramacion
         fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 # =====================================================
-# 🔄 REPROGRAMACION
+# � HISTORIAL_REPROGRAMACION
+# =====================================================
+class HistorialReprogramacionSerializer(serializers.ModelSerializer):
+    reserva_codigo = serializers.CharField(source='reserva.codigo', read_only=True)
+    reprogramado_por_nombre = serializers.CharField(source='reprogramado_por.nombre', read_only=True)
+    
+    class Meta:
+        model = HistorialReprogramacion
+        fields = "__all__"
+        read_only_fields = ["id", "reserva_codigo", "reprogramado_por_nombre", "created_at", "updated_at"]
+
+
+# =====================================================
+# ⚙️ CONFIGURACION_GLOBAL_REPROGRAMACION
+# =====================================================
+class ConfiguracionGlobalReprogramacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfiguracionGlobalReprogramacion
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+# =====================================================
+#  REPROGRAMACION
 # =====================================================
 class ReprogramacionSerializer(serializers.ModelSerializer):
-    reserva = ReservaSerializer(read_only=True)
-    reserva_id = serializers.PrimaryKeyRelatedField(
-        queryset=Reserva.objects.all(), source="reserva", write_only=True
-    )
-
+    reserva_codigo = serializers.CharField(source='reserva.codigo', read_only=True)
+    solicitado_por_nombre = serializers.CharField(source='solicitado_por.nombre', read_only=True)
+    aprobado_por_nombre = serializers.CharField(source='aprobado_por.nombre', read_only=True)
+    
     class Meta:
         model = Reprogramacion
         fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "reserva_codigo", "solicitado_por_nombre", "aprobado_por_nombre", "created_at", "updated_at"]
 
 
 # ==========================

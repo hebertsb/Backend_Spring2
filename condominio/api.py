@@ -1,6 +1,13 @@
 from rest_framework import viewsets, permissions
 from django.utils import timezone
 
+# Helper to safely get perfil from user
+def get_user_perfil(user):
+    """Safely get perfil from user object"""
+    if user and hasattr(user, 'perfil'):
+        return getattr(user, 'perfil', None)
+    return None
+
 # Helper to log into Bitacora
 def log_bitacora(request, accion, descripcion=None):
     """Create a Bitacora entry using request context (user perfil and IP).
@@ -13,11 +20,7 @@ def log_bitacora(request, accion, descripcion=None):
         # try to resolve perfil from request.user
         perfil = None
         user = getattr(request, 'user', None)
-        if user is not None:
-            try:
-                perfil = user.perfil
-            except Exception:
-                perfil = None
+        perfil = get_user_perfil(user)
 
         # Determine IP
         ip = None
@@ -74,13 +77,15 @@ class AuditedModelViewSet(viewsets.ModelViewSet):
         instance.delete()
 from .models import (
     Categoria, Servicio, Usuario, Campania, Cupon, Reserva, Visitante,
-    ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, Reprogramacion
+    ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, 
+    HistorialReprogramacion, ConfiguracionGlobalReprogramacion, Reprogramacion
 )
 from .serializer import (
     CategoriaSerializer, ServicioSerializer, UsuarioSerializer, CampaniaSerializer,
     CuponSerializer, ReservaSerializer, VisitanteSerializer, ReservaVisitanteSerializer,
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
-    ReprogramacionSerializer
+    HistorialReprogramacionSerializer, ConfiguracionGlobalReprogramacionSerializer,
+    ReprogramacionSerializer, PaqueteCompletoSerializer
 )
 from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
 from .serializer import BitacoraSerializer
@@ -113,10 +118,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         # Siempre devolver 200 para usuarios autenticados.
         # Si existe el perfil, devolverlo serializado; si no, devolver un fallback público mínimo.
         user = request.user
-        try:
-            perfil = user.perfil
-        except Exception:
-            perfil = None
+        perfil = get_user_perfil(user)
 
         if perfil:
             # Usar el serializador público consistente con login/register
@@ -143,6 +145,42 @@ class CampaniaViewSet(viewsets.ModelViewSet):
     queryset = Campania.objects.all()
     serializer_class = CampaniaSerializer
     permission_classes = [permissions.AllowAny]
+
+
+# =====================================================
+# 📦 PAQUETES COMPLETOS
+# =====================================================
+class PaqueteViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para mostrar paquetes completos (campaña + servicios incluidos)
+    Solo permite lectura (GET) - para crear/editar usar campanias y campania-servicios
+    """
+    queryset = Campania.objects.prefetch_related('servicios__servicio__categoria', 'cupones').all()
+    serializer_class = PaqueteCompletoSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        """Filtros personalizados para paquetes"""
+        queryset = super().get_queryset()
+        
+        # Filtrar solo campañas activas/vigentes si se solicita
+        activo = self.request.query_params.get('activo', None)
+        if activo and activo.lower() == 'true':
+            from django.utils import timezone
+            hoy = timezone.now().date()
+            queryset = queryset.filter(fecha_fin__gte=hoy)
+        
+        # Filtrar por tipo de descuento
+        tipo_descuento = self.request.query_params.get('tipo_descuento', None)
+        if tipo_descuento:
+            queryset = queryset.filter(tipo_descuento=tipo_descuento)
+        
+        # Filtrar por descuento mínimo
+        descuento_min = self.request.query_params.get('descuento_min', None)
+        if descuento_min:
+            queryset = queryset.filter(monto__gte=descuento_min)
+        
+        return queryset
 
 
 # =====================================================
@@ -257,6 +295,24 @@ class ReprogramacionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+# =====================================================
+# 📋 HISTORIAL_REPROGRAMACION
+# =====================================================
+class HistorialReprogramacionViewSet(viewsets.ModelViewSet):
+    queryset = HistorialReprogramacion.objects.select_related('reserva', 'reprogramado_por').all()
+    serializer_class = HistorialReprogramacionSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# =====================================================
+# ⚙️ CONFIGURACION_GLOBAL_REPROGRAMACION
+# =====================================================
+class ConfiguracionGlobalReprogramacionViewSet(viewsets.ModelViewSet):
+    queryset = ConfiguracionGlobalReprogramacion.objects.all()
+    serializer_class = ConfiguracionGlobalReprogramacionSerializer
+    permission_classes = [permissions.AllowAny]
+
+
 # ==========================
 # Soporte (Tickets)
 # ==========================
@@ -273,7 +329,7 @@ class TicketViewSet(AuditedModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         try:
-            perfil = user.perfil
+            perfil = getattr(user, "perfil", None)
         except Exception:
             perfil = None
 
@@ -283,11 +339,11 @@ class TicketViewSet(AuditedModelViewSet):
     def get_queryset(self):
         user = self.request.user
         try:
-            perfil = user.perfil
+            perfil = getattr(user, "perfil", None)
         except Exception:
             return Ticket.objects.none()
 
-        if perfil.rol and perfil.rol.nombre.lower() == 'soporte':
+        if perfil and hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() == 'soporte':
             return Ticket.objects.all()
         return Ticket.objects.filter(creador=perfil)
 
@@ -308,7 +364,7 @@ class TicketMessageViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         try:
-            perfil = user.perfil
+            perfil = getattr(user, "perfil", None)
         except Exception:
             perfil = None
 
@@ -328,7 +384,7 @@ class NotificacionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         try:
-            perfil = user.perfil
+            perfil = getattr(user, "perfil", None)
         except Exception:
             return Notificacion.objects.none()
         return Notificacion.objects.filter(usuario=perfil)

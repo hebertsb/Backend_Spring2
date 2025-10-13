@@ -1,0 +1,59 @@
+{
+    // Configuración de cSpell para reconocimiento automático de español
+    "version": "0.2",
+    "language": "en,es",
+    "dictionaries": [
+        "es-es",
+        "python", 
+        "django",
+        "npm",
+        "companies",
+        "softwareTerms"
+    ],
+    "dictionaryDefinitions": [
+        {
+            "name": "spanish-tech",
+            "path": "./spanish-tech.txt",
+            "description": "Términos técnicos en español"
+        }
+    ],
+    "languageSettings": [
+        {
+            "languageId": "python",
+            "locale": "es,en",
+            "allowCompoundWords": true,
+            "dictionaries": ["es-es", "python", "django"]
+        },
+        {
+            "languageId": "javascript",
+            "locale": "es,en", 
+            "allowCompoundWords": true
+        },
+        {
+            "languageId": "json",
+            "ignoreRegExpList": [".*"]
+        }
+    ],
+    "ignorePaths": [
+        "node_modules/**",
+        ".git/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/migrations/**",
+        "venv/**",
+        "env/**"
+    ],
+    "ignoreRegExpList": [
+        // Paquetes Python en requirements.txt
+        "\\b[a-z]+[a-z0-9_-]*==?[0-9.]+\\b",
+        // Imports de Python
+        "\\bfrom\\s+[a-zA-Z_][a-zA-Z0-9_.]*\\s+import\\b",
+        "\\bimport\\s+[a-zA-Z_][a-zA-Z0-9_.]*\\b",
+        // Variables snake_case
+        "\\b[a-z]+(_[a-z]+)*\\b",
+        // Constantes UPPER_CASE
+        "\\b[A-Z]+(_[A-Z]+)*\\b",
+        // URLs
+        "\\bhttps?://[^\\s]+\\b"
+    ]
+}

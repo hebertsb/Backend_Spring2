@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 
 from authz.models import Rol
 from core.models import TimeStampedModel
@@ -64,20 +65,60 @@ class Cupon(TimeStampedModel):
     campania = models.ForeignKey(Campania, on_delete=models.CASCADE, related_name='cupones')
 
     def __str__(self):
-        return f"Cupón #{self.id} ({self.nro_usos}/{self.cantidad_max})"
+        return f"Cupón #{self.pk or 'Nuevo'} ({self.nro_usos}/{self.cantidad_max})"
 
 
 # ======================================
 # 🧾 RESERVA
 # ======================================
 class Reserva(TimeStampedModel):
+    ESTADOS = [
+        ('PENDIENTE', 'Pendiente'),
+        ('CONFIRMADA', 'Confirmada'), 
+        ('PAGADA', 'Pagada'),
+        ('CANCELADA', 'Cancelada'),
+        ('COMPLETADA', 'Completada'),
+        ('REPROGRAMADA', 'Reprogramada'),
+    ]
+    
     fecha = models.DateField()
+    fecha_inicio = models.DateTimeField(null=True, blank=True, help_text="Fecha y hora específica del servicio")
+    fecha_fin = models.DateTimeField(null=True, blank=True, help_text="Fecha y hora de finalización")
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='PENDIENTE')
     total = models.DecimalField(max_digits=10, decimal_places=2)
+    moneda = models.CharField(max_length=10, default='BOB')
     cliente = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='reservas')
     cupon = models.ForeignKey(Cupon, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservas')
+    
+    # 🔄 Campos para reprogramación
+    fecha_original = models.DateTimeField(null=True, blank=True, help_text="Fecha original antes de reprogramar")
+    fecha_reprogramacion = models.DateTimeField(null=True, blank=True, help_text="Última fecha de reprogramación")
+    numero_reprogramaciones = models.IntegerField(default=0, help_text="Cantidad de veces reprogramada")
+    motivo_reprogramacion = models.CharField(max_length=255, blank=True, null=True)
+    reprogramado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='reprogramaciones_realizadas')
 
     def __str__(self):
-        return f"Reserva #{self.id} - {self.cliente.nombre}"
+        return f"Reserva #{self.pk} - {self.cliente.nombre}"
+
+
+# ======================================
+# 📅 HISTORIAL REPROGRAMACION
+# ======================================
+class HistorialReprogramacion(TimeStampedModel):
+    reserva = models.ForeignKey(Reserva, on_delete=models.CASCADE, related_name='historial_reprogramaciones')
+    fecha_anterior = models.DateTimeField(help_text="Fecha anterior antes del cambio")
+    fecha_nueva = models.DateTimeField(help_text="Nueva fecha después del cambio")
+    motivo = models.TextField(blank=True, null=True, help_text="Motivo de la reprogramación")
+    reprogramado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True)
+    notificacion_enviada = models.BooleanField(default=False, help_text="Si se envió notificación al cliente")
+
+    class Meta(TimeStampedModel.Meta):
+        ordering = ['-created_at']
+        verbose_name = "Historial de Reprogramación"
+        verbose_name_plural = "Historial de Reprogramaciones"
+
+    def __str__(self):
+        return f"Historial Reserva #{self.reserva.pk} - {self.fecha_nueva.strftime('%d/%m/%Y')}"
 
 
 # ======================================
@@ -104,11 +145,11 @@ class ReservaVisitante(TimeStampedModel):
     reserva = models.ForeignKey(Reserva, on_delete=models.CASCADE, related_name='visitantes')
     visitante = models.ForeignKey(Visitante, on_delete=models.CASCADE, related_name='reservas')
 
-    class Meta:
+    class Meta(TimeStampedModel.Meta):
         unique_together = ('reserva', 'visitante')
 
     def __str__(self):
-        return f"Reserva {self.reserva.id} - {self.visitante.nombre}"
+        return f"Reserva {self.reserva.pk or 'Nueva'} - {self.visitante.nombre}"
 
 
 # ======================================
@@ -140,7 +181,7 @@ class Servicio(TimeStampedModel):
     precio_usd = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=0.00,
+        default=Decimal('0.00'),
         help_text="Precio en dólares del servicio"
     )
     servicios_incluidos = models.JSONField(
@@ -162,7 +203,7 @@ class CampaniaServicio(TimeStampedModel):
     servicio = models.ForeignKey(Servicio, on_delete=models.CASCADE, related_name='campanias')
     campania = models.ForeignKey(Campania, on_delete=models.CASCADE, related_name='servicios')
 
-    class Meta:
+    class Meta(TimeStampedModel.Meta):
         unique_together = ('servicio', 'campania')
 
     def __str__(self):
@@ -192,19 +233,156 @@ class Pago(TimeStampedModel):
     reserva = models.ForeignKey(Reserva, on_delete=models.CASCADE, related_name='pagos')
 
     def __str__(self):
-        return f"Pago {self.id} - {self.estado} - {self.monto}"
+        return f"Pago {self.pk or 'Nuevo'} - {self.estado} - {self.monto}"
 
 
 # ======================================
-# 🔁 REGLA_REPROGRAMACION
+# ⚙️ REGLAS_REPROGRAMACION (Avanzadas)
 # ======================================
 class ReglaReprogramacion(TimeStampedModel):
-    descripcion = models.CharField(max_length=150)
-    limite_hora = models.PositiveIntegerField(help_text="Horas antes del evento para permitir reprogramación")
-    condiciones = models.TextField()
+    TIPOS_REGLA = [
+        ('TIEMPO_MINIMO', 'Tiempo mínimo de anticipación'),
+        ('TIEMPO_MAXIMO', 'Tiempo máximo para reprogramar'),
+        ('LIMITE_REPROGRAMACIONES', 'Límite de reprogramaciones por reserva'),
+        ('LIMITE_DIARIO', 'Límite diario de reprogramaciones por usuario'),
+        ('DIAS_BLACKOUT', 'Días no permitidos para reprogramar'),
+        ('HORAS_BLACKOUT', 'Horas no permitidas'),
+        ('SERVICIOS_RESTRINGIDOS', 'Servicios con restricciones especiales'),
+        ('CAPACIDAD_MAXIMA', 'Límite de capacidad por fecha'),
+        ('DESCUENTO_PENALIZACION', 'Penalización por reprogramar'),
+    ]
+    
+    APLICABLE_A = [
+        ('ALL', 'Todos los usuarios'),
+        ('CLIENTE', 'Solo clientes'),
+        ('ADMIN', 'Solo administradores'),
+        ('OPERADOR', 'Solo operadores'),
+    ]
+    
+    nombre = models.CharField(max_length=200, default="Regla sin nombre", help_text="Nombre descriptivo de la regla")
+    tipo_regla = models.CharField(max_length=50, choices=TIPOS_REGLA, default='TIEMPO_ANTICIPACION')
+    aplicable_a = models.CharField(max_length=50, choices=APLICABLE_A, default='ALL')
+    descripcion = models.CharField(max_length=150, default="Descripción pendiente")
+    limite_hora = models.PositiveIntegerField(help_text="Horas antes del evento para permitir reprogramación", null=True, blank=True)
+    condiciones = models.TextField(blank=True, null=True)
+    
+    # 🔢 Valores dinámicos por tipo de regla  
+    valor_numerico = models.IntegerField(null=True, blank=True, help_text="Para límites numéricos")
+    valor_decimal = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Para porcentajes y decimales")
+    valor_texto = models.TextField(null=True, blank=True, help_text="Para listas, JSON, etc.")
+    valor_booleano = models.BooleanField(null=True, blank=True, help_text="Para reglas si/no")
+    
+    # 📅 Vigencia de la regla
+    fecha_inicio_vigencia = models.DateField(null=True, blank=True)
+    fecha_fin_vigencia = models.DateField(null=True, blank=True)
+    activa = models.BooleanField(default=True)
+    prioridad = models.IntegerField(default=0, help_text="Mayor número = mayor prioridad")
+    
+    # 📝 Configuración avanzada
+    mensaje_error = models.TextField(null=True, blank=True, help_text="Mensaje personalizado cuando no se cumple")
+    condiciones_extras = models.JSONField(default=dict, blank=True, help_text="Condiciones adicionales en JSON")
+
+    class Meta(TimeStampedModel.Meta):
+        ordering = ['-prioridad', '-created_at']
+        verbose_name = "Regla de Reprogramación"
+        verbose_name_plural = "Reglas de Reprogramación"
+
+    def obtener_valor(self):
+        """Retorna el valor apropiado según el tipo de datos configurado"""
+        if self.valor_numerico is not None:
+            return self.valor_numerico
+        if self.valor_decimal is not None:
+            return self.valor_decimal
+        if self.valor_texto:
+            return self.valor_texto
+        if self.valor_booleano is not None:
+            return self.valor_booleano
+        return None
+    
+    @classmethod
+    def obtener_regla_activa(cls, tipo_regla, rol='ALL'):
+        """Obtiene la regla activa de mayor prioridad para el tipo y rol dados"""
+        return cls.objects.filter(
+            tipo_regla=tipo_regla,
+            aplicable_a=rol,
+            activa=True
+        ).order_by('-prioridad', '-created_at').first()
+    
+    @classmethod
+    def obtener_valor_regla(cls, tipo_regla, rol='ALL', default=None):
+        """Obtiene directamente el valor de una regla"""
+        regla = cls.obtener_regla_activa(tipo_regla, rol)
+        if regla:
+            return regla.obtener_valor()
+        return default
 
     def __str__(self):
-        return self.descripcion
+        return f"{self.nombre} ({self.tipo_regla}) - {self.aplicable_a}"
+
+
+# ======================================
+# ⚙️ CONFIGURACION_GLOBAL_REPROGRAMACION
+# ======================================
+class ConfiguracionGlobalReprogramacion(TimeStampedModel):
+    TIPOS_VALOR = [
+        ('STRING', 'Texto'),
+        ('INTEGER', 'Número entero'),
+        ('DECIMAL', 'Número decimal'),
+        ('BOOLEAN', 'Verdadero/Falso'),
+        ('JSON', 'Objeto JSON'),
+        ('LISTA', 'Lista separada por comas'),
+    ]
+    
+    clave = models.CharField(max_length=100, unique=True, help_text="Identificador único de la configuración")
+    valor = models.TextField(help_text="Valor de la configuración")
+    tipo_valor = models.CharField(max_length=50, choices=TIPOS_VALOR, default='STRING')
+    activa = models.BooleanField(default=True)
+    descripcion = models.TextField(null=True, blank=True, help_text="Descripción de qué hace esta configuración")
+
+    class Meta(TimeStampedModel.Meta):
+        ordering = ['clave']
+        verbose_name = "Configuración Global"
+        verbose_name_plural = "Configuraciones Globales"
+
+    def obtener_valor_tipado(self):
+        """Convierte el valor según su tipo configurado"""
+        import json
+        
+        tipo = self.tipo_valor.upper() if self.tipo_valor else 'STRING'
+        valor = self.valor
+
+        if tipo == 'INTEGER':
+            try:
+                return int(valor)
+            except (ValueError, TypeError):
+                return valor
+        elif tipo == 'DECIMAL':
+            try:
+                return float(valor)
+            except (ValueError, TypeError):
+                return valor
+        elif tipo == 'BOOLEAN':
+            return str(valor).lower() in ['true', '1', 'yes', 'si']
+        elif tipo == 'JSON':
+            try:
+                return json.loads(valor)
+            except (ValueError, TypeError):
+                return valor
+        elif tipo == 'LISTA':
+            return [v.strip() for v in valor.split(',')]
+        return valor
+
+    @classmethod
+    def obtener_configuracion(cls, clave, default=None):
+        """Obtiene una configuración por su clave"""
+        try:
+            config = cls.objects.get(clave=clave, activa=True)
+            return config.obtener_valor_tipado()
+        except cls.DoesNotExist:
+            return default
+
+    def __str__(self):
+        return f"{self.clave}: {self.valor[:50]}..."
 
 
 # ======================================
@@ -228,7 +406,7 @@ class Reprogramacion(TimeStampedModel):
     reserva = models.ForeignKey(Reserva, on_delete=models.CASCADE, related_name='reprogramaciones')
 
     def __str__(self):
-        return f"Reprogramación {self.id} ({self.estado})"
+        return f"Reprogramación {self.pk or 'Nueva'} ({self.estado})"
 
 
 # ======================================
@@ -251,11 +429,11 @@ class Ticket(TimeStampedModel):
     prioridad = models.CharField(max_length=10, blank=True, null=True)
     cerrado_en = models.DateTimeField(null=True, blank=True)
 
-    class Meta:
+    class Meta(TimeStampedModel.Meta):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Ticket #{self.id} - {self.asunto} ({self.estado})"
+        return f"Ticket #{self.pk or 'Nuevo'} - {self.asunto} ({self.estado})"
 
 
 class TicketMessage(TimeStampedModel):
@@ -264,7 +442,7 @@ class TicketMessage(TimeStampedModel):
     texto = models.TextField()
 
     def __str__(self):
-        return f"Mensaje #{self.id} - Ticket {self.ticket.id} by {self.autor.nombre}"
+        return f"Mensaje #{self.pk or 'Nuevo'} - Ticket {self.ticket.pk or 'Nuevo'} by {self.autor.nombre}"
 
 
 class Notificacion(TimeStampedModel):
@@ -280,7 +458,7 @@ class Notificacion(TimeStampedModel):
     leida = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Notificación #{self.id} -> {self.usuario.nombre} ({self.tipo})"
+        return f"Notificación #{self.pk or 'Nueva'} -> {self.usuario.nombre} ({self.tipo})"
 
 
 # ======================================
@@ -298,4 +476,5 @@ class Bitacora(TimeStampedModel):
 
     def __str__(self):
         who = self.usuario.nombre if self.usuario else 'Anon'
-        return f"{self.created_at.isoformat()} - {who} - {self.accion}"
+        fecha = self.created_at.isoformat() if self.created_at else 'Sin fecha'
+        return f"{fecha} - {who} - {self.accion}"

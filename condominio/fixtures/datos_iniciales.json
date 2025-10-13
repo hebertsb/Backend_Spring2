@@ -1152,5 +1152,125 @@
     "model": "condominio.reservavisitante",
     "pk": 10,
     "fields": { "reserva": 9, "visitante": 10 }
+  },
+
+  {
+    "model": "condominio.configuracionglobalreprogramacion",
+    "pk": 1,
+    "fields": {
+      "clave": "max_reprogramaciones_por_reserva",
+      "valor": "3",
+      "tipo_valor": "INTEGER",
+      "activa": true,
+      "descripcion": "Número máximo de reprogramaciones permitidas por reserva"
+    }
+  },
+
+  {
+    "model": "condominio.configuracionglobalreprogramacion",
+    "pk": 2,
+    "fields": {
+      "clave": "dias_minimos_antelacion",
+      "valor": "2",
+      "tipo_valor": "INTEGER",
+      "activa": true,
+      "descripcion": "Días mínimos de antelación para reprogramar una reserva"
+    }
+  },
+
+  {
+    "model": "condominio.configuracionglobalreprogramacion",
+    "pk": 3,
+    "fields": {
+      "clave": "horas_limite_reprogramacion",
+      "valor": "24",
+      "tipo_valor": "INTEGER",
+      "activa": true,
+      "descripcion": "Horas límite para realizar una reprogramación"
+    }
+  },
+
+  {
+    "model": "condominio.configuracionglobalreprogramacion",
+    "pk": 4,
+    "fields": {
+      "clave": "politicas_cancelacion",
+      "valor": "Las reservas pueden ser reprogramadas hasta 2 días antes de la fecha programada. Máximo 3 reprogramaciones por reserva.",
+      "tipo_valor": "STRING",
+      "activa": true,
+      "descripcion": "Políticas generales de cancelación y reprogramación"
+    }
+  },
+
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 1,
+    "fields": {
+      "nombre": "Tiempo Mínimo Estándar",
+      "descripcion": "Mínimo 24 horas de anticipación para reprogramar",
+      "tipo_regla": "TIEMPO_MINIMO",
+      "aplicable_a": "ALL",
+      "limite_hora": 24,
+      "valor_numerico": 24,
+      "condiciones": "{\"horas_minimas\": 24}",
+      "prioridad": 1,
+      "activa": true
+    }
+  },
+
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 2,
+    "fields": {
+      "nombre": "Límite de Reprogramaciones",
+      "descripcion": "Máximo 3 reprogramaciones por reserva",
+      "tipo_regla": "LIMITE_REPROGRAMACIONES",
+      "aplicable_a": "ALL",
+      "valor_numerico": 3,
+      "condiciones": "{\"max_reprogramaciones\": 3}",
+      "prioridad": 2,
+      "activa": true
+    }
+  },
+
+  {
+    "model": "condominio.reglareprogramacion",
+    "pk": 3,
+    "fields": {
+      "nombre": "Penalización por Reprogramar",
+      "descripcion": "5% de penalización para reprogramaciones",
+      "tipo_regla": "DESCUENTO_PENALIZACION",
+      "aplicable_a": "CLIENTE",
+      "valor_decimal": "0.05",
+      "condiciones": "{\"porcentaje_penalizacion\": 5}",
+      "prioridad": 3,
+      "activa": true
+    }
+  },
+
+  {
+    "model": "condominio.historialreprogramacion",
+    "pk": 1,
+    "fields": {
+      "reserva": 1,
+      "fecha_anterior": "2025-01-15T10:00:00Z",
+      "fecha_nueva": "2025-01-20T10:00:00Z",
+      "motivo": "Cambio de planes del cliente",
+      "reprogramado_por": 2,
+      "notificacion_enviada": true
+    }
+  },
+
+  {
+    "model": "condominio.historialreprogramacion",
+    "pk": 2,
+    "fields": {
+      "reserva": 3,
+      "fecha_anterior": "2025-02-10T14:30:00Z",
+      "fecha_nueva": "2025-02-15T14:30:00Z",
+      "motivo": "Condiciones climáticas adversas",
+      "reprogramado_por": 1,
+      "notificacion_enviada": false
+    }
   }
 ]
