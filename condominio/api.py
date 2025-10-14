@@ -78,7 +78,7 @@ class AuditedModelViewSet(viewsets.ModelViewSet):
             pass
         instance.delete()
 from .models import (
-    Categoria, Servicio, Usuario, Campania, Cupon, Reserva, Visitante,
+    Categoria, Servicio, Usuario, Campania, Paquete, PaqueteServicio, Cupon, Reserva, Visitante,
     ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, 
     HistorialReprogramacion, ConfiguracionGlobalReprogramacion, Reprogramacion
 )
@@ -87,7 +87,8 @@ from .serializer import (
     CuponSerializer, ReservaSerializer, VisitanteSerializer, ReservaVisitanteSerializer,
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
     HistorialReprogramacionSerializer, ConfiguracionGlobalReprogramacionSerializer,
-    ReprogramacionSerializer, PaqueteCompletoSerializer
+    ReprogramacionSerializer, PaqueteCompletoSerializer, PaqueteSerializer, PerfilUsuarioSerializer,
+    SoporteResumenSerializer
 )
 from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
 from .serializer import BitacoraSerializer
@@ -96,6 +97,7 @@ from .utils import assign_agent_to_ticket
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db import models
 
 
 # =====================================================
@@ -141,6 +143,233 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 
 
 # =====================================================
+# 👤 PERFIL DE USUARIO (Para clientes)
+# =====================================================
+class PerfilUsuarioViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para mostrar perfil completo del usuario con estadísticas
+    Solo permite lectura - para editar usar el endpoint usuarios
+    """
+    serializer_class = PerfilUsuarioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Solo devolver el perfil del usuario autenticado"""
+        user = self.request.user
+        perfil = get_user_perfil(user)
+        if perfil:
+            return Usuario.objects.filter(id=perfil.id)
+        return Usuario.objects.none()
+    
+    @action(detail=False, methods=['get'])
+    def mi_perfil(self, request):
+        """Endpoint directo para obtener mi perfil completo"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = PerfilUsuarioSerializer(perfil)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def mis_reservas(self, request):
+        """Obtener todas las reservas del usuario autenticado"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        reservas = perfil.reservas.all().order_by('-created_at')
+        
+        # Serializar reservas básicas
+        reservas_data = []
+        for reserva in reservas:
+            reservas_data.append({
+                'id': reserva.id,
+                'fecha': reserva.fecha,
+                'estado': reserva.estado,
+                'total': float(reserva.total),
+                'moneda': reserva.moneda,
+                'fecha_creacion': reserva.created_at,
+                'cupon_usado': reserva.cupon.id if reserva.cupon else None
+            })
+        
+        return Response({
+            'count': len(reservas_data),
+            'reservas': reservas_data
+        })
+
+
+# =====================================================
+# 🎫 SOPORTE - PANEL API
+# =====================================================
+class SoportePanelViewSet(viewsets.ViewSet):
+    """
+    API específica para el panel de soporte de usuarios
+    Proporciona información resumida y accesos directos
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def list(self, request):
+        """Resumen general del soporte para el usuario"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener resumen de soporte
+        serializer = SoporteResumenSerializer(perfil)
+        
+        # Agregar información adicional del panel
+        data = dict(serializer.data)
+        data['panel_info'] = {
+            'puede_crear_ticket': True,
+            'limite_tickets_diarios': 5,  # Configurable
+            'tickets_hoy': perfil.tickets_creados.filter(
+                created_at__date=timezone.now().date()
+            ).count(),
+            'tipos_soporte': [
+                {'id': 'tecnico', 'nombre': 'Soporte Técnico'},
+                {'id': 'reservas', 'nombre': 'Problemas con Reservas'},
+                {'id': 'pagos', 'nombre': 'Consultas de Pagos'},
+                {'id': 'general', 'nombre': 'Consulta General'}
+            ]
+        }
+        
+        return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def mis_tickets(self, request):
+        """Obtener todos los tickets del usuario"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        tickets = perfil.tickets_creados.all().order_by('-created_at')
+        
+        tickets_data = []
+        for ticket in tickets:
+            tickets_data.append({
+                'id': ticket.id,
+                'asunto': ticket.asunto,
+                'descripcion': ticket.descripcion[:100] + '...' if len(ticket.descripcion) > 100 else ticket.descripcion,
+                'estado': ticket.estado,
+                'prioridad': ticket.prioridad,
+                'fecha_creacion': ticket.created_at,
+                'agente_asignado': ticket.agente.nombre if ticket.agente else None,
+                'mensajes_count': ticket.messages.count()
+            })
+        
+        return Response({
+            'count': len(tickets_data),
+            'tickets': tickets_data
+        })
+    
+    @action(detail=False, methods=['post'])
+    def crear_ticket_rapido(self, request):
+        """Crear un ticket rápido desde el panel"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validar límite diario
+        tickets_hoy = perfil.tickets_creados.filter(
+            created_at__date=timezone.now().date()
+        ).count()
+        
+        if tickets_hoy >= 5:  # Límite configurable
+            return Response(
+                {'error': 'Has alcanzado el límite diario de tickets (5)'}, 
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+        
+        asunto = request.data.get('asunto')
+        descripcion = request.data.get('descripcion')
+        tipo_soporte = request.data.get('tipo_soporte', 'general')
+        
+        if not asunto or not descripcion:
+            return Response(
+                {'error': 'Asunto y descripción son requeridos'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Crear ticket
+        ticket = Ticket.objects.create(
+            creador=perfil,
+            asunto=f"[{tipo_soporte.upper()}] {asunto}",
+            descripcion=descripcion,
+            prioridad='Media'
+        )
+        
+        # Asignar agente automáticamente
+        assign_agent_to_ticket(ticket)
+        
+        return Response({
+            'id': ticket.pk,
+            'asunto': ticket.asunto,
+            'estado': ticket.estado,
+            'mensaje': 'Ticket creado exitosamente'
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['get'])
+    def notificaciones_soporte(self, request):
+        """Obtener notificaciones relacionadas con soporte"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener notificaciones de los últimos 30 días
+        desde = timezone.now() - timezone.timedelta(days=30)
+        notificaciones = Notificacion.objects.filter(
+            usuario=perfil,
+            created_at__gte=desde
+        ).order_by('-created_at')
+        
+        notif_data = []
+        for notif in notificaciones:
+            notif_data.append({
+                'id': notif.pk,
+                'tipo': notif.tipo,
+                'leida': notif.leida,
+                'fecha': notif.created_at,
+                'datos': notif.datos
+            })
+        
+        return Response({
+            'count': len(notif_data),
+            'notificaciones': notif_data
+        })
+
+
+# =====================================================
 # 🎯 CAMPAÑA
 # =====================================================
 class CampaniaViewSet(viewsets.ModelViewSet):
@@ -166,39 +395,123 @@ class CampaniaViewSet(viewsets.ModelViewSet):
 
 
 # =====================================================
-# 📦 PAQUETES COMPLETOS
+# 📦 PAQUETES TURÍSTICOS (Nuevo modelo)
 # =====================================================
 class PaqueteViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet para mostrar paquetes completos (campaña + servicios incluidos)
-    Solo permite lectura (GET) - para crear/editar usar campanias y campania-servicios
+    ViewSet para paquetes turísticos completos con servicios/destinos incluidos
+    Permite listar, ver detalle y filtrar paquetes disponibles
     """
-    queryset = Campania.objects.prefetch_related('servicios__servicio__categoria', 'cupones').all()
-    serializer_class = PaqueteCompletoSerializer
+    queryset = Paquete.objects.prefetch_related(
+        'servicios__categoria', 
+        'paqueteservicio_set__servicio__categoria',
+        'campania'
+    ).all()
+    serializer_class = PaqueteSerializer
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        """Filtros personalizados para paquetes"""
+        """Filtros personalizados para paquetes turísticos"""
         queryset = super().get_queryset()
         
-        # Filtrar solo campañas activas/vigentes si se solicita
+        # Filtrar solo paquetes activos
         activo = self.request.query_params.get('activo', None)
         if activo and activo.lower() == 'true':
+            queryset = queryset.filter(estado='Activo')
+        
+        # Filtrar solo paquetes disponibles (vigentes + con cupos)
+        disponible = self.request.query_params.get('disponible', None)
+        if disponible and disponible.lower() == 'true':
             from django.utils import timezone
             hoy = timezone.now().date()
-            queryset = queryset.filter(fecha_fin__gte=hoy)
+            queryset = queryset.filter(
+                estado='Activo',
+                fecha_inicio__lte=hoy,
+                fecha_fin__gte=hoy,
+                cupos_ocupados__lt=models.F('cupos_disponibles')
+            )
         
-        # Filtrar por tipo de descuento
-        tipo_descuento = self.request.query_params.get('tipo_descuento', None)
-        if tipo_descuento:
-            queryset = queryset.filter(tipo_descuento=tipo_descuento)
+        # Filtrar solo paquetes destacados
+        destacado = self.request.query_params.get('destacado', None)
+        if destacado and destacado.lower() == 'true':
+            queryset = queryset.filter(destacado=True)
         
-        # Filtrar por descuento mínimo
-        descuento_min = self.request.query_params.get('descuento_min', None)
-        if descuento_min:
-            queryset = queryset.filter(monto__gte=descuento_min)
+        # Filtrar por rango de precio
+        precio_min = self.request.query_params.get('precio_min', None)
+        precio_max = self.request.query_params.get('precio_max', None)
+        if precio_min:
+            queryset = queryset.filter(precio_base__gte=precio_min)
+        if precio_max:
+            queryset = queryset.filter(precio_base__lte=precio_max)
+        
+        # Filtrar por duración (contiene texto)
+        duracion = self.request.query_params.get('duracion', None)
+        if duracion:
+            queryset = queryset.filter(duracion__icontains=duracion)
         
         return queryset
+    
+    @action(detail=False, methods=['get'], url_path='destacados')
+    def destacados(self, request):
+        """Endpoint para obtener solo paquetes destacados"""
+        paquetes_destacados = self.get_queryset().filter(destacado=True)[:6]
+        serializer = self.get_serializer(paquetes_destacados, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='disponibles')
+    def disponibles(self, request):
+        """Endpoint para obtener solo paquetes disponibles para reservar"""
+        from django.utils import timezone
+        hoy = timezone.now().date()
+        
+        paquetes_disponibles = self.get_queryset().filter(
+            estado='Activo',
+            fecha_inicio__lte=hoy,
+            fecha_fin__gte=hoy,
+            cupos_ocupados__lt=models.F('cupos_disponibles')
+        )
+        
+        serializer = self.get_serializer(paquetes_disponibles, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], url_path='itinerario')
+    def itinerario_detallado(self, request, pk=None):
+        """Endpoint para obtener el itinerario completo de un paquete"""
+        paquete = self.get_object()
+        paquete_servicios = PaqueteServicio.objects.filter(
+            paquete=paquete
+        ).select_related('servicio__categoria').order_by('dia', 'orden')
+        
+        itinerario = {}
+        for ps in paquete_servicios:
+            dia_key = f"dia_{ps.dia}"
+            if dia_key not in itinerario:
+                itinerario[dia_key] = {
+                    'dia': ps.dia,
+                    'fecha_ejemplo': None,  # Se puede calcular con fechas reales
+                    'actividades': []
+                }
+            
+            itinerario[dia_key]['actividades'].append({
+                'id': ps.id,
+                'orden': ps.orden,
+                'hora_inicio': ps.hora_inicio,
+                'hora_fin': ps.hora_fin,
+                'servicio_id': ps.servicio.pk,
+                'titulo': ps.servicio.titulo,
+                'descripcion': ps.servicio.descripcion,
+                'categoria': ps.servicio.categoria.nombre if ps.servicio.categoria else None,
+                'punto_encuentro': ps.punto_encuentro_override or ps.servicio.punto_encuentro,
+                'notas': ps.notas,
+                'servicios_incluidos': ps.servicio.servicios_incluidos
+            })
+        
+        return Response({
+            'paquete_id': paquete.pk,
+            'paquete_nombre': paquete.nombre,
+            'duracion_total': paquete.duracion,
+            'itinerario': list(itinerario.values())
+        })
 
 
 # =====================================================
@@ -230,6 +543,165 @@ class ReservaViewSet(AuditedModelViewSet):
     queryset = Reserva.objects.select_related('cliente', 'cupon').all()
     serializer_class = ReservaSerializer
     permission_classes = [permissions.AllowAny]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['cliente__nombre', 'estado', 'moneda']
+    filterset_fields = ['estado', 'moneda', 'cliente']
+
+    # ===============================
+    # PROVISIONAL: Override create to forzar estado='PAGADA' (eliminar 'PENDIENTE')
+    # ===============================
+    def create(self, request, *args, **kwargs):
+        # Copiar los datos y forzar estado='PAGADA'
+        data = request.data.copy()
+        data['estado'] = 'PAGADA'  # PROVISIONAL: Forzar estado pagada
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+    def get_queryset(self):
+        """
+        Filtrar reservas según el usuario autenticado
+        Si está autenticado, mostrar solo sus reservas
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if user.is_authenticated:
+            # Si el usuario está autenticado, mostrar solo sus reservas
+            perfil = get_user_perfil(user)
+            if perfil:
+                # Si es admin/staff, ver todas; si es cliente, solo las suyas
+                if hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in ['admin', 'soporte']:
+                    return queryset  # Admin ve todas las reservas
+                else:
+                    return queryset.filter(cliente=perfil)  # Cliente ve solo las suyas
+            else:
+                return queryset.none()  # Sin perfil, no ver nada
+        
+        return queryset  # Usuario no autenticado ve todo (para compatibilidad)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def mis_reservas(self, request):
+        """Endpoint específico para que el cliente vea solo sus reservas"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener reservas del usuario con información relacionada
+        reservas = Reserva.objects.filter(cliente=perfil).select_related(
+            'cliente', 'cupon'
+        ).prefetch_related(
+            'visitantes__visitante'
+        ).order_by('-created_at')
+        
+        # Filtros opcionales (compatible con DRF y Django)
+        query_params = getattr(request, 'query_params', request.GET)
+        
+        estado = query_params.get('estado', None)
+        if estado:
+            reservas = reservas.filter(estado=estado)
+        
+        fecha_desde = query_params.get('fecha_desde', None)
+        if fecha_desde:
+            reservas = reservas.filter(fecha__gte=fecha_desde)
+        
+        fecha_hasta = query_params.get('fecha_hasta', None)
+        if fecha_hasta:
+            reservas = reservas.filter(fecha__lte=fecha_hasta)
+        
+        # Serializar con información completa
+        serializer = ReservaSerializer(reservas, many=True)
+        
+        # Añadir estadísticas
+        stats = {
+            'total_reservas': reservas.count(),
+            'por_estado': {
+                'PENDIENTE': reservas.filter(estado='PENDIENTE').count(),
+                'CONFIRMADA': reservas.filter(estado='CONFIRMADA').count(),
+                'PAGADA': reservas.filter(estado='PAGADA').count(),
+                'CANCELADA': reservas.filter(estado='CANCELADA').count(),
+                'COMPLETADA': reservas.filter(estado='COMPLETADA').count(),
+                'REPROGRAMADA': reservas.filter(estado='REPROGRAMADA').count(),
+            }
+        }
+        
+        return Response({
+            'estadisticas': stats,
+            'reservas': serializer.data
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def reservas_activas(self, request):
+        """Reservas activas (no canceladas ni completadas)"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        reservas_activas = Reserva.objects.filter(
+            cliente=perfil,
+            estado__in=['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'REPROGRAMADA']
+        ).select_related('cliente', 'cupon').order_by('-created_at')
+        
+        serializer = ReservaSerializer(reservas_activas, many=True)
+        
+        return Response({
+            'count': reservas_activas.count(),
+            'reservas_activas': serializer.data
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def historial_completo(self, request):
+        """Historial completo con reprogramaciones"""
+        user = request.user
+        perfil = get_user_perfil(user)
+        
+        if not perfil:
+            return Response(
+                {'error': 'No se encontró el perfil del usuario'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        reservas = Reserva.objects.filter(cliente=perfil).select_related(
+            'cliente', 'cupon', 'reprogramado_por'
+        ).prefetch_related('historial_reprogramaciones').order_by('-created_at')
+        
+        historial_data = []
+        for reserva in reservas:
+            reserva_data = dict(ReservaSerializer(reserva).data)
+            
+            # Añadir historial de reprogramaciones usando consulta directa
+            historial_reprog = []
+            # Usar consulta directa para evitar problemas con Pylance
+            historiales = HistorialReprogramacion.objects.filter(reserva=reserva)
+            for hist in historiales:
+                historial_reprog.append({
+                    'fecha_anterior': hist.fecha_anterior,
+                    'fecha_nueva': hist.fecha_nueva,
+                    'motivo': hist.motivo,
+                    'reprogramado_por': hist.reprogramado_por.nombre if hist.reprogramado_por else None,
+                    'fecha_cambio': hist.created_at
+                })
+            
+            reserva_data['historial_reprogramaciones'] = historial_reprog
+            historial_data.append(reserva_data)
+        
+        return Response({
+            'count': len(historial_data),
+            'historial': historial_data
+        })
 
     # Auditing hooks: create bitacora entries on create/update/destroy
     def perform_create(self, serializer):

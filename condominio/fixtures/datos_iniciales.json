@@ -1273,4 +1273,307 @@
       "notificacion_enviada": false
     }
   }
-]
+
+      ,
+      {
+        "model": "condominio.paquete",
+        "pk": 1,
+        "fields": {
+          "nombre": "Aventura Andina",
+          "descripcion": "Un recorrido de 3 días por los destinos más emblemáticos del altiplano boliviano.",
+          "duracion": "3 días",
+          "precio_base": "480.00",
+            "precio_bob": "3360.00",
+          "cupos_disponibles": 15,
+          "cupos_ocupados": 0,
+          "fecha_inicio": "2025-01-10",
+          "fecha_fin": "2025-12-31",
+          "estado": "Activo",
+          "destacado": true,
+          "imagen_principal": "https://images.pexels.com/photos/17507607/pexels-photo-17507607.jpeg",
+          "punto_salida": "La Paz, Terminal Central",
+          "incluye": ["Transporte", "Guía", "Hotel", "Entradas"],
+          "no_incluye": ["Almuerzos", "Propinas"],
+          "campania": null
+        }
+      },
+      {
+        "model": "condominio.paquete",
+        "pk": 2,
+        "fields": {
+          "nombre": "Selva y Cultura",
+          "descripcion": "Explora la biodiversidad del Madidi y la historia de Tiwanaku en un solo paquete.",
+          "duracion": "4 días",
+          "precio_base": "650.00",
+            "precio_bob": "4550.00",
+          "cupos_disponibles": 10,
+          "cupos_ocupados": 0,
+          "fecha_inicio": "2025-02-01",
+          "fecha_fin": "2025-12-31",
+          "estado": "Activo",
+          "destacado": false,
+          "imagen_principal": "https://images.pexels.com/photos/2010206051/pexels-photo-2010206051.jpeg",
+          "punto_salida": "Rurrenabaque, Puerto Principal",
+          "incluye": ["Transporte", "Guía", "Hotel", "Desayunos"],
+          "no_incluye": ["Cenas", "Bebidas"],
+          "campania": null
+        }
+      },
+      {
+        "model": "condominio.paquete",
+        "pk": 3,
+        "fields": {
+          "nombre": "Ruta Colonial",
+          "descripcion": "Descubre la historia y arquitectura de Sucre y Samaipata en 2 días inolvidables.",
+          "duracion": "2 días",
+          "precio_base": "320.00",
+            "precio_bob": "2240.00",
+          "cupos_disponibles": 12,
+          "cupos_ocupados": 0,
+          "fecha_inicio": "2025-03-15",
+          "fecha_fin": "2025-12-31",
+          "estado": "Activo",
+          "destacado": false,
+          "imagen_principal": "https://images.pexels.com/photos/859293856/pexels-photo-859293856.jpeg",
+          "punto_salida": "Sucre, Plaza 25 de Mayo",
+          "incluye": ["Transporte", "Guía", "Entradas"],
+          "no_incluye": ["Almuerzos", "Propinas"],
+          "campania": null
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 1,
+        "fields": {
+          "paquete": 1,
+          "servicio": 1,
+          "dia": 1,
+          "orden": 1,
+          "hora_inicio": "08:00:00",
+          "hora_fin": "18:00:00",
+          "notas": "Tour completo por el Salar de Uyuni.",
+          "punto_encuentro_override": "Uyuni, Plaza Principal"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 2,
+        "fields": {
+          "paquete": 1,
+          "servicio": 5,
+          "dia": 2,
+          "orden": 1,
+          "hora_inicio": "07:00:00",
+          "hora_fin": "16:00:00",
+          "notas": "Exploración de la Laguna Colorada.",
+          "punto_encuentro_override": "Reserva Eduardo Avaroa"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 3,
+        "fields": {
+          "paquete": 1,
+          "servicio": 6,
+          "dia": 3,
+          "orden": 1,
+          "hora_inicio": "09:00:00",
+          "hora_fin": "15:00:00",
+          "notas": "Aventura en el Camino de la Muerte.",
+          "punto_encuentro_override": "Terminal de Yungas"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 4,
+        "fields": {
+          "paquete": 2,
+          "servicio": 9,
+          "dia": 1,
+          "orden": 1,
+          "hora_inicio": "07:30:00",
+          "hora_fin": "18:00:00",
+          "notas": "Recorrido ecológico en Madidi.",
+          "punto_encuentro_override": "Puerto de Rurrenabaque"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 5,
+        "fields": {
+          "paquete": 2,
+          "servicio": 3,
+          "dia": 2,
+          "orden": 1,
+          "hora_inicio": "09:00:00",
+          "hora_fin": "13:00:00",
+          "notas": "Visita arqueológica a Tiwanaku.",
+          "punto_encuentro_override": "Museo Nacional de Arqueología"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 6,
+        "fields": {
+          "paquete": 3,
+          "servicio": 10,
+          "dia": 1,
+          "orden": 1,
+          "hora_inicio": "08:30:00",
+          "hora_fin": "17:00:00",
+          "notas": "Recorrido histórico por Sucre.",
+          "punto_encuentro_override": "Plaza 25 de Mayo, Sucre"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 7,
+        "fields": {
+          "paquete": 3,
+          "servicio": 8,
+          "dia": 2,
+          "orden": 1,
+          "hora_inicio": "09:00:00",
+          "hora_fin": "16:00:00",
+          "notas": "Tour arqueológico en Samaipata.",
+          "punto_encuentro_override": "Plaza 24 de Septiembre, Santa Cruz"
+        }
+      }
+      ,
+      {
+        "model": "condominio.paquete",
+        "pk": 4,
+        "fields": {
+          "nombre": "Aventura Amazónica",
+          "descripcion": "Sumérgete en la selva amazónica con actividades de senderismo, avistamiento de fauna y navegación por ríos.",
+          "duracion": "3 días",
+          "precio_base": "540.00",
+            "precio_bob": "3780.00",
+          "cupos_disponibles": 14,
+          "cupos_ocupados": 0,
+          "fecha_inicio": "2025-04-10",
+          "fecha_fin": "2025-12-31",
+          "estado": "Activo",
+          "destacado": true,
+          "imagen_principal": "https://images.pexels.com/photos/2010206051/pexels-photo-2010206051.jpeg",
+          "punto_salida": "Rurrenabaque, Puerto Principal",
+          "incluye": ["Guía local", "Navegación", "Alojamiento ecológico"],
+          "no_incluye": ["Bebidas alcohólicas", "Propinas"],
+          "campania": null
+        }
+      },
+      {
+        "model": "condominio.paquete",
+        "pk": 5,
+        "fields": {
+          "nombre": "Escapada Gastronómica",
+          "descripcion": "Disfruta de la mejor gastronomía boliviana con tours culinarios y degustaciones en diferentes ciudades.",
+          "duracion": "2 días",
+          "precio_base": "260.00",
+            "precio_bob": "1820.00",
+          "cupos_disponibles": 18,
+          "cupos_ocupados": 0,
+          "fecha_inicio": "2025-05-01",
+          "fecha_fin": "2025-12-31",
+          "estado": "Activo",
+          "destacado": false,
+          "imagen_principal": "https://images.pexels.com/photos/17895232/pexels-photo-17895232.jpeg",
+          "punto_salida": "La Paz, Mercado Lanza",
+          "incluye": ["Degustaciones", "Guía gastronómico", "Transporte local"],
+          "no_incluye": ["Cenas", "Bebidas"],
+          "campania": null
+        }
+      },
+      {
+        "model": "condominio.paquete",
+        "pk": 6,
+        "fields": {
+          "nombre": "Naturaleza y Relax",
+          "descripcion": "Relájate en los paisajes naturales de Coroico y disfruta de cascadas y senderos ecológicos.",
+          "duracion": "2 días",
+          "precio_base": "210.00",
+            "precio_bob": "1470.00",
+          "cupos_disponibles": 16,
+          "cupos_ocupados": 0,
+          "fecha_inicio": "2025-06-01",
+          "fecha_fin": "2025-12-31",
+          "estado": "Activo",
+          "destacado": false,
+          "imagen_principal": "https://media.istockphoto.com/id/859293544/es/foto/niebla-de-la-ma%C3%B1ana-sobre-el-camino-de-la-muerte-en-los-yungas-de-bolivia.jpg",
+          "punto_salida": "Coroico, Plaza Principal",
+          "incluye": ["Hotel", "Guía", "Transporte"],
+          "no_incluye": ["Almuerzos", "Propinas"],
+          "campania": null
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 8,
+        "fields": {
+          "paquete": 4,
+          "servicio": 9,
+          "dia": 1,
+          "orden": 1,
+          "hora_inicio": "08:00:00",
+          "hora_fin": "18:00:00",
+          "notas": "Exploración ecológica en Madidi.",
+          "punto_encuentro_override": "Puerto de Rurrenabaque"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 9,
+        "fields": {
+          "paquete": 4,
+          "servicio": 7,
+          "dia": 2,
+          "orden": 1,
+          "hora_inicio": "09:00:00",
+          "hora_fin": "16:00:00",
+          "notas": "Senderismo y cascadas en Coroico.",
+          "punto_encuentro_override": "Plaza Principal de Coroico"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 10,
+        "fields": {
+          "paquete": 5,
+          "servicio": 2,
+          "dia": 1,
+          "orden": 1,
+          "hora_inicio": "10:00:00",
+          "hora_fin": "15:00:00",
+          "notas": "Tour gastronómico en Isla del Sol.",
+          "punto_encuentro_override": "Puerto de Copacabana"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 11,
+        "fields": {
+          "paquete": 5,
+          "servicio": 4,
+          "dia": 2,
+          "orden": 1,
+          "hora_inicio": "09:00:00",
+          "hora_fin": "13:00:00",
+          "notas": "Degustación y city tour en Cochabamba.",
+          "punto_encuentro_override": "Teleférico Cristo"
+        }
+      },
+      {
+        "model": "condominio.paqueteservicio",
+        "pk": 12,
+        "fields": {
+          "paquete": 6,
+          "servicio": 7,
+          "dia": 1,
+          "orden": 1,
+          "hora_inicio": "08:30:00",
+          "hora_fin": "17:00:00",
+          "notas": "Relax y naturaleza en Coroico.",
+          "punto_encuentro_override": "Plaza Principal de Coroico"
+        }
+      }
+    ]

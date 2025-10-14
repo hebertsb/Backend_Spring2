@@ -20,6 +20,7 @@ from django.urls import path, include
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", include("condominio.urls")),   #agrege s a este y abajo    y le aumente s al nombre de condominio url.py al archivo
-    path("api/", include("authz.urls")),
+    path("api/", include("condominio.urls")),
+    path("api/", include("authz.urls")),  # ⚠️ TEMPORAL: Mantener para compatibilidad con frontend actual y compañeros
+    
 ]

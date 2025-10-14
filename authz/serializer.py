@@ -130,6 +130,9 @@ class MeSerializer(serializers.ModelSerializer):
         user_data = validated_data.pop('user', {})
         if not user_data and hasattr(self, 'initial_data'):
             user_data = self.initial_data.get('user', {}) or {}
+        # Asegurarse de que user_data sea un dict
+        if not isinstance(user_data, dict):
+            user_data = {}
         user = instance.user
         # email change: validate uniqueness
         new_email = user_data.get('email')
@@ -146,6 +149,8 @@ class MeSerializer(serializers.ModelSerializer):
         if last_updated:
             user.last_name = user_data.get('last_name') or ''
         user.save()
+
+        # (No role-based privilege changes here; role handling occurs at registration)
 
         # If payload didn't explicitly include 'nombre', keep Usuario.nombre in sync with User first/last
         if ('nombre' not in validated_data) and (first_updated or last_updated):
@@ -177,7 +182,8 @@ class RegisterSerializer(serializers.Serializer):
     documento_identidad = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     pais = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     # campos específicos del backend existente (mantenemos compatibilidad)
-    rol = serializers.IntegerField(required=True)
+    # Use PrimaryKeyRelatedField to get DRF to validate the rol automatically
+    rol = serializers.PrimaryKeyRelatedField(queryset=Rol.objects.all(), required=True)
     rubro = serializers.CharField(required=False, allow_blank=True)
 
     def validate_email(self, value):
@@ -205,7 +211,8 @@ class RegisterSerializer(serializers.Serializer):
         apellidos = validated_data.get('apellidos') or validated_data.get('lastname') or validated_data.get('last_name') or ''
         email = validated_data.get('email')
         password = validated_data.get('password')
-        rol_id = validated_data.get('rol')
+        # 'rol' here is already a Rol instance due to PrimaryKeyRelatedField
+        rol = validated_data.get('rol')
         rubro = validated_data.get('rubro', '')
 
         # Crear User
@@ -213,12 +220,6 @@ class RegisterSerializer(serializers.Serializer):
         user.first_name = nombres
         user.last_name = apellidos
         user.save()
-
-        # Buscar rol (el frontend debe proveer rol)
-        try:
-            rol = Rol.objects.get(pk=rol_id)
-        except Rol.DoesNotExist:
-            raise serializers.ValidationError({'rol': ["El rol especificado no existe."]})
 
         # Crear perfil Usuario
         nombre_completo = f"{nombres} {apellidos}".strip()
@@ -233,6 +234,24 @@ class RegisterSerializer(serializers.Serializer):
             documento_identidad=validated_data.get('documento_identidad') or None,
             pais=validated_data.get('pais') or None,
         )
+
+        # If the assigned role looks administrative, mark the user as staff
+        # and try to grant the `auth.change_user` permission so they can access
+        # admin-like endpoints (e.g. GET /api/users/ requires staff or change_user).
+        try:
+            slug = (rol.slug or '').lower() if rol else ''
+            nombre = (rol.nombre or '').lower() if rol else ''
+            if slug in ('admin', 'administrator') or 'admin' in nombre or 'administrador' in nombre:
+                user.is_staff = True
+                try:
+                    from django.contrib.auth.models import Permission
+                    perm = Permission.objects.get(codename='change_user')
+                    user.user_permissions.add(perm)
+                except Exception:
+                    pass
+                user.save()
+        except Exception:
+            pass
 
         # Nota: campos opcionales (telefono, fecha_nacimiento, genero, etc.) no se guardan
         # porque el modelo actual no los define. Si se necesitan, debemos extender el modelo

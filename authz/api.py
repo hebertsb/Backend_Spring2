@@ -54,9 +54,14 @@ class UserDetailView(APIView):
         user = get_object_or_404(User, pk=pk)
         # If a Usuario profile exists, return the profile representation (same shape as /api/users/me/)
         try:
-            perfil = user.perfil
-            serializer = MeSerializer(perfil)
-            return Response(serializer.data)
+            perfil = getattr(user, 'perfil', None)
+            if perfil:
+                serializer = MeSerializer(perfil)
+                return Response(serializer.data)
+            else:
+                # fallback to previous user-only serializer
+                serializer = UserWithRolesSerializer(user)
+                return Response(serializer.data)
         except Usuario.DoesNotExist:
             # fallback to previous user-only serializer
             serializer = UserWithRolesSerializer(user)
@@ -66,7 +71,10 @@ class UserDetailView(APIView):
         # Allow admins (or users with change permission) to partially update another user's profile
         user = get_object_or_404(User, pk=pk)
         try:
-            perfil = user.perfil
+            perfil = getattr(user, 'perfil', None)
+            if not perfil:
+                # create perfil if missing
+                perfil = Usuario.objects.create(user=user)
         except Usuario.DoesNotExist:
             # create perfil if missing
             perfil = Usuario.objects.create(user=user)
@@ -85,7 +93,9 @@ class MeView(APIView):
 
     def get(self, request):
         try:
-            perfil = request.user.perfil
+            perfil = getattr(request.user, 'perfil', None)
+            if not perfil:
+                return Response(status=404)
         except Usuario.DoesNotExist:
             return Response(status=404)
         serializer = MeSerializer(perfil)
@@ -93,7 +103,9 @@ class MeView(APIView):
 
     def patch(self, request):
         try:
-            perfil = request.user.perfil
+            perfil = getattr(request.user, 'perfil', None)
+            if not perfil:
+                return Response(status=404)
         except Usuario.DoesNotExist:
             return Response(status=404)
         serializer = MeSerializer(perfil, data=request.data, partial=True)
@@ -124,7 +136,7 @@ class UserRolesView(APIView):
 
         with transaction.atomic():
             # Antes: obtener el rol actual (si existe)
-            before = list(user.user_roles.values_list('rol__slug', flat=True))
+            before = list(UserRole.objects.filter(user=user).values_list('rol__slug', flat=True))
             added = []
             removed = []
 
@@ -165,7 +177,7 @@ class UserRolesView(APIView):
                 Bitacora.objects.create(usuario=perfil, accion='UPDATE_ROLES', descripcion=f'Roles actualizados (added={added} removed={removed})', ip_address=request.META.get('REMOTE_ADDR'))
             except Exception:
                 pass
-        return Response({'id': user.id, 'roles': after})
+        return Response({'id': user.pk, 'roles': after})
 
     def post(self, request, pk):
         # add single role
@@ -193,14 +205,14 @@ class UserRolesView(APIView):
                     Bitacora.objects.create(usuario=perfil, accion='ASSIGN_ROLE', descripcion=f'Rol {role.slug} asignado', ip_address=request.META.get('REMOTE_ADDR'))
                 except Exception:
                     pass
-                return Response({'id': user.id, 'role': role.slug}, status=status.HTTP_201_CREATED)
-        return Response({'id': user.id, 'role': role.slug}, status=status.HTTP_200_OK)
+                return Response({'id': user.pk, 'role': role.slug}, status=status.HTTP_201_CREATED)
+        return Response({'id': user.pk, 'role': role.slug}, status=status.HTTP_200_OK)
 
     def delete(self, request, pk, role_slug=None):
         user = get_object_or_404(User, pk=pk)
         # role_slug can be slug or id
         try:
-            if role_slug.isdigit():
+            if role_slug and role_slug.isdigit():
                 role = get_object_or_404(Rol, pk=int(role_slug))
             else:
                 role = get_object_or_404(Rol, slug=role_slug)
@@ -214,15 +226,6 @@ class UserRolesView(APIView):
             except Exception:
                 pass
         return Response(status=status.HTTP_204_NO_CONTENT)
-from rest_framework import viewsets, permissions
-from .models import Rol
-from .serializer import RolSerializer
-
-
-class RolViewSet(viewsets.ModelViewSet):
-    queryset = Rol.objects.all()
-    serializer_class = RolSerializer
-    permission_classes = [permissions.AllowAny]
 
 
 class SetUserActiveView(APIView):
@@ -252,4 +255,4 @@ class SetUserActiveView(APIView):
             Bitacora.objects.create(usuario=perfil, accion=accion, descripcion=f'Usuario {user.email} {"habilitado" if user.is_active else "inhabilitado"} por {request.user.email}', ip_address=request.META.get('REMOTE_ADDR'))
         except Exception:
             pass
-        return Response({'id': user.id, 'is_active': user.is_active})
+        return Response({'id': user.pk, 'is_active': user.is_active})

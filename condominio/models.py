@@ -194,6 +194,181 @@ class Servicio(TimeStampedModel):
         return self.titulo
 
 
+# ======================================
+# 📦 PAQUETE TURÍSTICO
+# ======================================
+class Paquete(TimeStampedModel):
+    ESTADOS = [
+        ('Activo', 'Activo'),
+        ('Inactivo', 'Inactivo'),
+        ('Agotado', 'Agotado'),
+    ]
+    
+    nombre = models.CharField(max_length=200, help_text="Nombre del paquete turístico")
+    descripcion = models.TextField(help_text="Descripción detallada del paquete")
+    duracion = models.CharField(max_length=50, help_text="Duración total del paquete (ej: 3 días, 1 semana)")
+    
+    # Servicios/Destinos incluidos en el paquete
+    servicios = models.ManyToManyField(
+        Servicio, 
+        through='PaqueteServicio', 
+        related_name='paquetes',
+        help_text="Servicios/destinos incluidos en este paquete"
+    )
+    
+    # Precios y disponibilidad
+    precio_base = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        help_text="Precio base del paquete completo en USD"
+    )
+    precio_bob = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Precio en bolivianos (se calcula automáticamente)"
+    )
+    
+    # Disponibilidad
+    cupos_disponibles = models.PositiveIntegerField(
+        default=20, 
+        help_text="Número de cupos disponibles para este paquete"
+    )
+    cupos_ocupados = models.PositiveIntegerField(
+        default=0,
+        help_text="Número de cupos ya reservados"
+    )
+    
+    # Fechas de vigencia
+    fecha_inicio = models.DateField(help_text="Fecha de inicio de disponibilidad")
+    fecha_fin = models.DateField(help_text="Fecha de fin de disponibilidad")
+    
+    # Estado y configuración
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='Activo')
+    destacado = models.BooleanField(default=False, help_text="Mostrar como paquete destacado")
+    
+    # Información adicional
+    imagen_principal = models.URLField(
+        max_length=500, 
+        blank=True, 
+        null=True,
+        help_text="URL de la imagen principal del paquete"
+    )
+    punto_salida = models.CharField(
+        max_length=255, 
+        help_text="Punto de salida del paquete turístico"
+    )
+    incluye = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de lo que incluye el paquete (transporte, hotel, guía, etc.)"
+    )
+    no_incluye = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de lo que NO incluye el paquete"
+    )
+    
+    # Campaña asociada (opcional para descuentos)
+    campania = models.ForeignKey(
+        'Campania', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='paquetes_con_descuento',
+        help_text="Campaña de descuento aplicable a este paquete"
+    )
+
+    class Meta(TimeStampedModel.Meta):
+        ordering = ['-destacado', '-created_at']
+        verbose_name = "Paquete Turístico"
+        verbose_name_plural = "Paquetes Turísticos"
+
+    def __str__(self):
+        return f"{self.nombre} ({self.duracion})"
+    
+    @property
+    def cupos_restantes(self):
+        """Cupos disponibles restantes"""
+        return max(0, self.cupos_disponibles - self.cupos_ocupados)
+    
+    @property
+    def porcentaje_ocupacion(self):
+        """Porcentaje de ocupación del paquete"""
+        if self.cupos_disponibles == 0:
+            return 0
+        return (self.cupos_ocupados / self.cupos_disponibles) * 100
+    
+    @property
+    def precio_con_descuento(self):
+        """Precio final aplicando descuento de campaña si existe"""
+        if not self.campania:
+            return self.precio_base
+        
+        if self.campania.tipo_descuento == '%':
+            descuento = self.precio_base * (self.campania.monto / 100)
+            return self.precio_base - descuento
+        else:  # Descuento fijo
+            return max(0, self.precio_base - self.campania.monto)
+    
+    @property
+    def esta_vigente(self):
+        """Verifica si el paquete está vigente hoy"""
+        from django.utils import timezone
+        hoy = timezone.now().date()
+        return self.fecha_inicio <= hoy <= self.fecha_fin
+    
+    @property
+    def esta_disponible(self):
+        """Verifica si el paquete está disponible para reservar"""
+        return (
+            self.estado == 'Activo' and 
+            self.esta_vigente and 
+            self.cupos_restantes > 0
+        )
+
+
+# ======================================
+# 🔗 PAQUETE_SERVICIO (tabla intermedia)
+# ======================================
+class PaqueteServicio(TimeStampedModel):
+    """Tabla intermedia entre Paquete y Servicio con información adicional"""
+    
+    paquete = models.ForeignKey(Paquete, on_delete=models.CASCADE)
+    servicio = models.ForeignKey(Servicio, on_delete=models.CASCADE)
+    
+    # Información específica del servicio en este paquete
+    dia = models.PositiveIntegerField(help_text="Día del itinerario (1, 2, 3, etc.)")
+    orden = models.PositiveIntegerField(default=1, help_text="Orden dentro del día")
+    
+    # Horarios específicos para este paquete
+    hora_inicio = models.TimeField(null=True, blank=True, help_text="Hora de inicio del servicio")
+    hora_fin = models.TimeField(null=True, blank=True, help_text="Hora de finalización del servicio")
+    
+    # Notas específicas
+    notas = models.TextField(
+        blank=True, 
+        null=True, 
+        help_text="Notas específicas del servicio en este paquete"
+    )
+    
+    # Opcional: Override del punto de encuentro para este paquete
+    punto_encuentro_override = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text="Punto de encuentro específico para este paquete (si difiere del servicio)"
+    )
+    
+    class Meta(TimeStampedModel.Meta):
+        unique_together = ('paquete', 'servicio', 'dia', 'orden')
+        ordering = ['dia', 'orden']
+        verbose_name = "Servicio en Paquete"
+        verbose_name_plural = "Servicios en Paquetes"
+    
+    def __str__(self):
+        return f"{self.paquete.nombre} - Día {self.dia}: {self.servicio.titulo}"
 
 
 # ======================================

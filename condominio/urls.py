@@ -7,7 +7,8 @@ from .api import (
     CuponViewSet, ReservaViewSet, VisitanteViewSet, ReservaVisitanteViewSet,
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
-    ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet
+    ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet,
+    PerfilUsuarioViewSet, SoportePanelViewSet
 )
 from .api import BitacoraViewSet
 from core.views import crear_pago  # asegúrate que está bien importado
@@ -33,6 +34,9 @@ router.register(r'notificaciones', NotificacionViewSet)
 router.register(r'historial-reprogramacion', HistorialReprogramacionViewSet)
 router.register(r'configuracion-global-reprogramacion', ConfiguracionGlobalReprogramacionViewSet)
 router.register(r'bitacora', BitacoraViewSet)
+# 👤 APIs para perfiles y soporte
+router.register(r'perfil', PerfilUsuarioViewSet, basename='perfil')
+router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
 
 urlpatterns = router.urls + [
     path('crear-pago/', crear_pago, name='crear-pago'),
