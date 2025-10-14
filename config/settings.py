@@ -36,6 +36,11 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
+    '192.168.0.1',
+    # local machine Wi-Fi IP (allow mobile devices on same LAN)
+    '192.168.0.6',
+    # Virtualbox / host-only adapter (if present)
+    '192.168.56.1',
 ]
 
 
@@ -72,6 +77,9 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    # Allow local device dev servers (React Native / local web debug)
+    'http://192.168.0.6:3000',
+    'http://192.168.56.1:3000',
 ]
 
 # For development you can also allow all origins (use carefully):
