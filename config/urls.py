@@ -21,6 +21,7 @@ from django.urls import path, include
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("condominio.urls")),
-    path("api/", include("authz.urls")),  # ⚠️ TEMPORAL: Mantener para compatibilidad con frontend actual y compañeros
+    path('api/', include('core.url')),
+
     
 ]
