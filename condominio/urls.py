@@ -11,7 +11,7 @@ from .api import (
     PerfilUsuarioViewSet, SoportePanelViewSet
 )
 from .api import BitacoraViewSet
-from core.views import crear_pago  # asegúrate que está bien importado
+from core.views import crear_pago, crear_checkout_session  # asegúrate que está bien importado
 
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)
@@ -40,6 +40,7 @@ router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
 
 urlpatterns = router.urls + [
     path('crear-pago/', crear_pago, name='crear-pago'),
+    path('crear-checkout-session/', crear_checkout_session, name='crear-checkout-session'),
 
      path('backups/', include('condominio.backups.urls')),
   
