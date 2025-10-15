@@ -27,6 +27,20 @@ settings_local.py
 # Logs
 *.log
 
+# ======================================
+# 🚫 EXCLUIR TESTS Y GUÍAS LOCALES
+# ======================================
+# Archivos de test
+test_*.py
+*_test.py
+test_requests.py
+test_reservas_endpoint.py
+test_viewset.py
+tmp_debug_post_ticket.py
+
+# Carpeta de pagos (guías y docs locales)
+pagos/
+
 # Media files (archivos subidos)
 media/
 soporte/
