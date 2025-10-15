@@ -3,7 +3,6 @@ from django.utils import timezone
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
 
-# Helper to safely get perfil from user
 def get_user_perfil(user):
     """Safely get perfil from user object"""
     if user and hasattr(user, 'perfil'):

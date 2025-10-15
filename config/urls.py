@@ -22,6 +22,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("condominio.urls")),
     path('api/', include('core.url')),
+    path('api/', include('authz.urls')),
 
     
 ]

@@ -12,49 +12,42 @@ from rest_framework import status
 from condominio.models import Paquete, Servicio
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+url_frontend = os.getenv("URL_FRONTEND")
 
-
-@api_view(["POST"])
 # @permission_classes([IsAuthenticated])
+@api_view(["POST"])
 def crear_checkout_session(request):
-    """
-    Crea una sesión de pago en Stripe Checkout.
-    """
     try:
-        # Recibir datos de la reserva o producto
         data = request.data
         nombre = data.get("nombre", "Reserva")
-        precio = float(data.get("precio", 0))  # en USD
+        precio = float(data.get("precio", 0))
         cantidad = int(data.get("cantidad", 1))
 
         if precio <= 0:
-            return Response(
-                {"error": "Precio inválido"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Precio inválido"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Crear sesión de pago
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
             mode="payment",
             line_items=[
                 {
                     "price_data": {
-                        "currency": "usd",
+                        "currency": "bob",
                         "product_data": {"name": nombre},
-                        "unit_amount": int(precio * 100),  # convertir a centavos
+                        "unit_amount": int(precio),
                     },
                     "quantity": cantidad,
                 }
             ],
-            success_url="http://localhost:3000/pago-exitoso?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="http://localhost:3000/pago-cancelado",
-            metadata={"usuario_id": request.user.id},
+            success_url=f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{url_frontend}/pago-cancelado/",
+            metadata={"usuario_id": str(request.user.id) if request.user.is_authenticated else "anonimo"},
         )
 
         return Response({"checkout_url": session.url})
 
     except Exception as e:
-        print(e)
+        print("❌ Error Stripe:", e)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -101,11 +94,11 @@ Usa siempre el siguiente contexto para responder de forma amable, breve y precis
 2. Solo responde con información real de los paquetes o servicios que existen en el contexto.  
    Si no tienes la información, di literalmente: “No tengo información disponible sobre eso.”
 3. Debes incluir **exactamente una URL válida** al final de tu respuesta.  
-   - Si es un paquete, usa: `http://localhost:3000/paquetes/{id}/`
-   - Si es un servicio, usa: `http://localhost:3000/destinos/{id}/`
+   - Si es un paquete, usa: {url_frontend}/paquetes/{id}/
+   - Si es un servicio, usa: {url_frontend}/destinos/{id}/
    Ejemplo:  
    > Te recomiendo el paquete “Aventura Andina”, ideal para conocer el Salar de Uyuni. Cuesta 480 USD y dura 3 días.  
-   > http://localhost:3000/paquetes/1/
+   > {url_frontend}/paquetes/1/
 4. **No inventes URLs ni IDs.** Usa solo los que estén en el contexto recibido.
 5. No hables de otros países, únicamente de lugares dentro de Bolivia.
 6. Si el usuario pide un lugar que no está en el contexto, responde:  
