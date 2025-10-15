@@ -37,7 +37,7 @@
   {
     "model": "condominio.categoria",
     "pk": 4,
-    "fields": { "nombre": "Naturalezasssssssssssssssss" }
+    "fields": { "nombre": "Naturaleza" }
   },
   {
     "model": "condominio.categoria",
