@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
     """
     Restaura un backup .zip (creado por backup_full.py o por la API).
-    Puede ser llamado desde consola o desde Django (API).
+    Compatible con SQLite, PostgreSQL y fixtures JSON.
     """
     if not backup_zip_path.exists():
         msg = f"❌ No se encontró el backup: {backup_zip_path}"
@@ -55,25 +55,67 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
     # ------------------------------------
     if restore_db:
         print("🗄️ Restaurando base de datos...")
+
+        from urllib.parse import urlparse
+        DATABASE_URL = os.getenv("DATABASE_URL")
+
         sqlite_file = temp_dir / "db.sqlite3"
+        postgres_dump = next(temp_dir.glob("*.sql"), None)
+        json_files = list(temp_dir.glob("*.json"))
+
+        # ------------------- SQLite -------------------
         if sqlite_file.exists():
             dst_db = BASE_DIR / "db.sqlite3"
             if dst_db.exists():
                 dst_db.unlink()
             shutil.copy2(sqlite_file, dst_db)
             print(f"✅ Base de datos SQLite restaurada: {dst_db}")
-        else:
-            json_files = list(temp_dir.glob("*.json"))
-            if json_files:
-                for json_file in json_files:
-                    print(f"🔄 Restaurando fixture JSON: {json_file.name}")
-                    subprocess.run([
-                        sys.executable, str(BASE_DIR / "manage.py"),
-                        "loaddata", str(json_file)
-                    ])
-                print("✅ Fixtures restaurados.")
+
+        # ------------------- PostgreSQL -------------------
+        elif postgres_dump:
+            print(f"🔄 Restaurando dump PostgreSQL: {postgres_dump.name}")
+
+            if DATABASE_URL:
+                parsed = urlparse(DATABASE_URL)
+                pg_user = parsed.username
+                pg_password = parsed.password
+                pg_host = parsed.hostname
+                pg_port = parsed.port or "5432"
+                pg_db = parsed.path.lstrip("/")
             else:
-                print("⚠️ No se encontró base de datos ni fixture JSON.")
+                pg_user = os.getenv("POSTGRES_USER", "postgres")
+                pg_password = os.getenv("POSTGRES_PASSWORD", "")
+                pg_host = os.getenv("POSTGRES_HOST", "localhost")
+                pg_port = os.getenv("POSTGRES_PORT", "5432")
+                pg_db = os.getenv("POSTGRES_DB", "mydatabase")
+
+            os.environ["PGPASSWORD"] = pg_password or ""
+
+            result = subprocess.run([
+                "pg_restore",
+                "-U", pg_user,
+                "-h", pg_host,
+                "-p", str(pg_port),
+                "-d", pg_db,
+                str(postgres_dump)
+            ])
+
+            if result.returncode == 0:
+                print("✅ Base de datos PostgreSQL restaurada correctamente.")
+            else:
+                print("❌ Error al restaurar la base de datos PostgreSQL.")
+
+        # ------------------- JSON Fixtures -------------------
+        elif json_files:
+            for json_file in json_files:
+                print(f"🔄 Restaurando fixture JSON: {json_file.name}")
+                subprocess.run([
+                    sys.executable, str(BASE_DIR / "manage.py"),
+                    "loaddata", str(json_file)
+                ])
+            print("✅ Fixtures restaurados.")
+        else:
+            print("⚠️ No se encontró base de datos, dump o fixture JSON.")
 
     # ------------------------------------
     # Limpieza final

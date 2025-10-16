@@ -6,67 +6,79 @@ import subprocess
 import zipfile
 import argparse
 import sys
-from condominio.backups.upload_dropbox import upload_to_dropbox
-from dotenv import load_dotenv  # ✅ NUEVO
+from dotenv import load_dotenv
+from condominio.backups.upload_dropbox import upload_to_dropbox, get_dropbox_share_link
 
-load_dotenv()  # ✅ Carga variables desde .env
-# ---------------------------
-# Configuración de rutas
-# ---------------------------
+# =====================================================
+# 🌍 Configuración inicial
+# =====================================================
 
-# Raíz del proyecto (donde está manage.py y db.sqlite3)
+load_dotenv()  # Carga variables de entorno (.env)
+
+# Rutas principales
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-
-# Carpeta de backups (única, dentro de condominio/backups)
 BACKUP_ROOT = PROJECT_ROOT / "condominio" / "backups"
-
-# Base de datos SQLite
 SQLITE_FILE = PROJECT_ROOT / "db.sqlite3"
-
-# Archivo manage.py
 MANAGE_PY = PROJECT_ROOT / "manage.py"
 
-# ---------------------------
-# Función de backup
-# ---------------------------
+# =====================================================
+# 🧩 Función principal de backup completo
+# =====================================================
 
 def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="sqlite"):
+    from urllib.parse import urlparse
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     temp_backup_dir = BACKUP_ROOT / f"backup_temp_{timestamp}"
     os.makedirs(temp_backup_dir, exist_ok=True)
 
     print(f"📦 Creando backup temporal en: {temp_backup_dir}")
 
-    # -------------------
-    # Backup de base de datos
-    # -------------------
+    # =====================================================
+    # 🗄️ Backup de base de datos (SQLite o PostgreSQL)
+    # =====================================================
     if include_db:
-        if db_type.lower() == "sqlite":
+        DATABASE_URL = os.getenv("DATABASE_URL")
+
+        if db_type.lower() == "sqlite" or not DATABASE_URL:
+            # ------------------- SQLite -------------------
             if SQLITE_FILE.exists():
                 shutil.copy(SQLITE_FILE, temp_backup_dir / SQLITE_FILE.name)
                 print(f"🗄️ Base de datos SQLite copiada: {SQLITE_FILE.name}")
             else:
                 print("⚠️ No se encontró archivo de base de datos SQLite.")
-        elif db_type.lower() == "postgres":
+        else:
+            # ------------------- PostgreSQL -------------------
+            print("💾 Realizando backup de PostgreSQL completo...")
+
+            parsed = urlparse(DATABASE_URL)
+            pg_user = parsed.username
+            pg_password = parsed.password
+            pg_host = parsed.hostname
+            pg_port = parsed.port or "5432"
+            pg_db = parsed.path.lstrip("/")
+
             pg_dump_file = temp_backup_dir / f"postgres_dump_{timestamp}.sql"
-            print("💾 Realizando backup de Postgres...")
+            os.environ["PGPASSWORD"] = pg_password or ""
+
             result = subprocess.run([
                 "pg_dump",
-                "-U", os.getenv("POSTGRES_USER", "postgres"),
-                "-h", os.getenv("POSTGRES_HOST", "localhost"),
-                "-p", os.getenv("POSTGRES_PORT", "5432"),
-                "-F", "c",
-                "-f", str(pg_dump_file),
-                os.getenv("POSTGRES_DB", "mydatabase")
+                "-U", pg_user,
+                "-h", pg_host,
+                "-p", str(pg_port),
+                "-d", pg_db,
+                "-F", "p",  # formato plano SQL (restaurable con psql)
+                "-f", str(pg_dump_file)
             ])
-            if result.returncode == 0:
-                print(f"✅ Dump de Postgres generado: {pg_dump_file.name}")
-            else:
-                print("❌ Error al realizar backup de Postgres.")
 
-    # -------------------
-    # Backup de backend
-    # -------------------
+            if result.returncode == 0:
+                print(f"✅ Dump de PostgreSQL generado: {pg_dump_file.name}")
+            else:
+                print("❌ Error al realizar backup de PostgreSQL. Verificá las credenciales o pg_dump.")
+
+    # =====================================================
+    # ⚙️ Backup del backend (código fuente)
+    # =====================================================
     if include_backend:
         include_dirs = ["condominio", "core", "authz", "config", "scripts"]
         exclude_patterns = ['venv', '__pycache__', 'backups', 'node_modules']
@@ -74,7 +86,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
         backend_backup_dir = temp_backup_dir / "backend_code"
         os.makedirs(backend_backup_dir, exist_ok=True)
 
-        print("📝 Copiando código backend completo...")
+        print("🧠 Copiando código backend completo...")
         for include_dir in include_dirs:
             src = PROJECT_ROOT / include_dir
             if not src.exists():
@@ -83,10 +95,10 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
             shutil.copytree(src, dst, ignore=shutil.ignore_patterns(*exclude_patterns))
         print("✅ Código backend copiado correctamente.")
 
-    # -------------------
-    # Backup de datos JSON (fixtures)
-    # -------------------
-    if include_db and db_type.lower() == "sqlite":
+    # =====================================================
+    # 🧾 Backup de datos JSON (fixtures)
+    # =====================================================
+    if include_db:
         if MANAGE_PY.exists():
             json_backup_file = temp_backup_dir / f"dump_{timestamp}.json"
             subprocess.run([
@@ -100,9 +112,9 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
         else:
             print("⚠️ No se encontró manage.py, no se pudo generar fixture JSON.")
 
-    # -------------------
-    # Comprimir todo en ZIP
-    # -------------------
+    # =====================================================
+    # 🗜️ Comprimir todo el backup
+    # =====================================================
     zip_file = BACKUP_ROOT / f"full_backup_{timestamp}.zip"
     print(f"📁 Comprimiendo backup final en: {zip_file}")
     with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -110,16 +122,27 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
             for file in files:
                 file_path = Path(root) / file
                 zipf.write(file_path, file_path.relative_to(temp_backup_dir))
-        print(f"✅ Backup completo comprimido en: {zip_file}")
+    print(f"✅ Backup completo comprimido en: {zip_file}")
 
-    # ☁️ Subida automática a Dropbox
+    # =====================================================
+    # ☁️ Subida a Dropbox + enlace directo
+    # =====================================================
     try:
-        upload_to_dropbox(zip_file)
-        print("📤 Backup subido correctamente a Dropbox.")
-    except Exception as e:
-        print(f"⚠️ Error al subir a Dropbox: {e}")
+        dest_path = upload_to_dropbox(zip_file)
+        print(f"📤 Backup subido correctamente a Dropbox: {dest_path}")
 
-    # 🧹 Limpiar carpeta temporal
+        # Generar enlace directo
+        link = get_dropbox_share_link(os.path.basename(zip_file))
+        if link:
+            print(f"🔗 Enlace de descarga directa: {link}")
+        else:
+            print("⚠️ No se pudo generar el enlace compartido de Dropbox.")
+    except Exception as e:
+        print(f"⚠️ Error al subir o generar enlace en Dropbox: {e}")
+
+    # =====================================================
+    # 🧹 Limpieza final
+    # =====================================================
     try:
         shutil.rmtree(temp_backup_dir)
         print("🧹 Carpeta temporal eliminada. Backup finalizado con éxito.")
@@ -127,21 +150,18 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
         print(f"⚠️ No se pudo eliminar carpeta temporal: {e}")
 
 
-# ---------------------------
-# Ejecución desde CLI
-# ---------------------------
-
+# =====================================================
+# 🔧 Ejecución desde CLI
+# =====================================================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Backup Django completo")
+    parser = argparse.ArgumentParser(description="Backup Django completo (PostgreSQL + código + fixtures)")
     parser.add_argument("--no-backend", action="store_true", help="No incluir código backend")
     parser.add_argument("--no-db", action="store_true", help="No incluir base de datos")
-    parser.add_argument("--no-frontend", action="store_true", help="No incluir frontend (solo si existe)")
-    parser.add_argument("--db-type", choices=["sqlite", "postgres"], default="sqlite", help="Tipo de base de datos")
+    parser.add_argument("--db-type", choices=["sqlite", "postgres"], default="postgres", help="Tipo de base de datos")
     args = parser.parse_args()
 
     run_backup(
         include_backend=not args.no_backend,
         include_db=not args.no_db,
-        include_frontend=not args.no_frontend,
         db_type=args.db_type
     )
