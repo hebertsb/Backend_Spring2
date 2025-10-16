@@ -654,3 +654,29 @@ class Bitacora(TimeStampedModel):
         who = self.usuario.nombre if self.usuario else 'Anon'
         fecha = self.created_at.isoformat() if self.created_at else 'Sin fecha'
         return f"{fecha} - {who} - {self.accion}"
+
+# ======================================
+# 🧾 COMPROBANTE DE PAGO (CU10 - Cliente)
+# ======================================
+class ComprobantePago(TimeStampedModel):
+    ESTADOS = [
+        ('Pendiente', 'Pendiente'),
+        ('Verificado', 'Verificado'),
+        ('Rechazado', 'Rechazado'),
+    ]
+    reserva = models.ForeignKey(Reserva, on_delete=models.CASCADE, related_name='comprobantes')
+    cliente = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='comprobantes')
+    metodo_pago = models.CharField(max_length=50, choices=Pago.METODOS, default='Transferencia')
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    archivo = models.FileField(upload_to='comprobantes/', null=True, blank=True)
+    numero_transaccion = models.CharField(max_length=100, blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='Pendiente')
+    observacion = models.TextField(blank=True, null=True, help_text="Comentario del administrador (si es rechazado o revisado)")
+
+    class Meta(TimeStampedModel.Meta):
+        ordering = ['-created_at']
+        verbose_name = "Comprobante de Pago"
+        verbose_name_plural = "Comprobantes de Pago"
+
+    def __str__(self):
+        return f"Comprobante #{self.pk or 'Nuevo'} - {self.reserva} - {self.estado}"

@@ -17,6 +17,7 @@ from .models import (
     HistorialReprogramacion,
     ConfiguracionGlobalReprogramacion,
     Reprogramacion,
+    ComprobantePago,
 )
 
 
@@ -778,3 +779,15 @@ class BitacoraSerializer(serializers.ModelSerializer):
             return local_dt.isoformat()
         except Exception:
             return str(obj.created_at)
+        
+# ==========================
+# Comprobante de Pago
+# ==========================      
+        
+class ComprobantePagoSerializer(serializers.ModelSerializer):
+    reserva_detalle = serializers.StringRelatedField(source='reserva', read_only=True)
+    cliente_nombre = serializers.CharField(source='cliente.nombre', read_only=True)
+
+    class Meta:
+        model = ComprobantePago
+        fields = '__all__'
