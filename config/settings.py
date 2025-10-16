@@ -133,19 +133,27 @@ def _mask_db_url(url: str) -> str:
 DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or ""
 
 # Si viene vacía o contiene placeholders (${...}), reconstruir usando POSTGRES_* o RAILWAY_* vars
-if not DATABASE_URL or "${" in DATABASE_URL:
-    def _env_clean(*names):
-        """Return first env var value that doesn't look like a template placeholder."""
-        for n in names:
-            v = os.getenv(n)
-            if not v:
-                continue
-            # ignore values that contain unexpanded placeholders or stray braces
-            if "${" in v or "}}" in v or "{" in v or "}" in v:
-                continue
-            return v
-        return None
+def _env_clean(*names):
+    """Return first env var value that doesn't look like a template placeholder.
 
+    This ignores values that contain common unexpanded template markers or stray
+    braces so we don't accidentally use malformed values coming from CI/CD
+    platforms or bad .env files.
+    """
+    for n in names:
+        v = os.getenv(n)
+        if not v:
+            continue
+        # ignore values that contain unexpanded placeholders or stray braces
+        if "${" in v or "}}" in v or "{" in v or "}" in v:
+            continue
+        return v
+    return None
+
+
+# If DATABASE_URL is completely missing or obviously contains template markers or
+# stray braces, rebuild it from POSTGRES_/RAILWAY_ environment variables.
+if not DATABASE_URL or any(bad in DATABASE_URL for bad in ("${", "{", "}")):
     pg_user = _env_clean("PGUSER", "POSTGRES_USER") or "postgres"
     pg_password = _env_clean("PGPASSWORD", "POSTGRES_PASSWORD") or ""
     pg_host = _env_clean("RAILWAY_PRIVATE_DOMAIN", "RAILWAY_TCP_PROXY_DOMAIN", "PGHOST") or "localhost"
@@ -153,16 +161,44 @@ if not DATABASE_URL or "${" in DATABASE_URL:
     pg_db = _env_clean("PGDATABASE", "POSTGRES_DB") or "railway"
 
     DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
-    # Mostrar versión mascarada (no expone la contraseña)
-    print(f"⚙️ DATABASE_URL reconstruida automáticamente: {_mask_db_url(DATABASE_URL)}")
+    # Mostrar versión mascarada (no expone la contraseña). Only print in DEBUG.
+    if DEBUG:
+        print(f"⚙️ DATABASE_URL reconstruida automáticamente: {_mask_db_url(DATABASE_URL)}")
 
 
 # Configurar Django DB usando dj-database-url
 # En producción suele requerirse SSL; ajusta ssl_require según tu proveedor
 # Si estamos en DEBUG y la DATABASE_URL viene vacía o con placeholders, usar SQLite local
 orig_env = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or ""
-if DEBUG and (not DATABASE_URL or "${" in orig_env or "{" in orig_env):
-    # Fallback a SQLite para desarrollo local cuando no hay una URL válida
+
+# Helper to detect local hostnames
+def _is_local_host(h: str) -> bool:
+    return h in ("localhost", "127.0.0.1", "0.0.0.0")
+
+# If DEBUG and the original env looks like a template or is missing, prefer SQLite
+# to avoid blocking local development (migrations/tests).
+bad_orig = not orig_env or any(bad in orig_env for bad in ("${", "{", "}"))
+
+# Try to parse DATABASE_URL to validate it and decide SSL requirement.
+parsed_host = None
+try:
+    p = urlparse(DATABASE_URL)
+    parsed_host = p.hostname
+except Exception:
+    parsed_host = None
+
+# Determine ssl requirement. Allow override with DB_SSL env var (0/false -> disable).
+_db_ssl_env = os.getenv("DB_SSL")
+def _is_falsey(v):
+    return str(v).lower() in ("0", "false", "no", "off", "")
+
+if _db_ssl_env is not None:
+    ssl_required = not _is_falsey(_db_ssl_env)
+else:
+    # infer: disable SSL for local hosts, enable otherwise
+    ssl_required = not (parsed_host and _is_local_host(parsed_host))
+
+if DEBUG and (not DATABASE_URL or bad_orig or not parsed_host):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -171,7 +207,7 @@ if DEBUG and (not DATABASE_URL or "${" in orig_env or "{" in orig_env):
     }
 else:
     DATABASES = {
-        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=ssl_required)
     }
 
 # Password validation
