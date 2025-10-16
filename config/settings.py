@@ -84,6 +84,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://192.168.56.1:3000',
     # Frontend desplegado en Netlify
     'https://turismosi2.netlify.app',
+    'https://sprightly-bunny-1e4b10.netlify.app'
 ]
 
 # For development you can also allow all origins (use carefully):
