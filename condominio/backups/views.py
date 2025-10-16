@@ -18,7 +18,6 @@ from .upload_dropbox import upload_to_dropbox, list_backups_dropbox, download_fr
 #os.makedirs(BACKUP_DIR, exist_ok=True)
 
 @api_view(['POST'])
-#@permission_classes([IsAdminUser])
 def crear_backup(request):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_name = f'backup_{timestamp}.zip'
@@ -36,6 +35,9 @@ def crear_backup(request):
     # Carpetas a excluir dentro del recorrido
     exclude_dirs = ['venv', 'node_modules', 'backups', '__pycache__']
 
+    # =====================================
+    # 🧩 Crear backup local
+    # =====================================
     with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         # Agregar base de datos
         if os.path.exists(db_path):
@@ -48,24 +50,53 @@ def crear_backup(request):
                 continue
 
             for foldername, subfolders, filenames in os.walk(include_path):
-                # Excluir carpetas no deseadas
                 subfolders[:] = [f for f in subfolders if f not in exclude_dirs]
-
                 for filename in filenames:
-                    # Evitar incluir backups dentro de backups
                     if any(ex in foldername for ex in exclude_dirs):
                         continue
                     filepath = os.path.join(foldername, filename)
                     relpath = os.path.relpath(filepath, project_root)
                     zipf.write(filepath, relpath)
 
-        # Agregar archivos raíz (manage.py, requirements.txt, etc.)
+        # Agregar archivos raíz
         for filename in os.listdir(project_root):
             if filename in ['manage.py', 'requirements.txt', '.env']:
                 filepath = os.path.join(project_root, filename)
                 zipf.write(filepath, os.path.basename(filepath))
 
-    return JsonResponse({'message': 'Backup creado', 'backup_file': backup_name})
+    print(f"✅ Backup local creado: {backup_path}")
+
+    # =====================================
+    # ☁️ Subir a Dropbox automáticamente
+    # =====================================
+    try:
+        dest_path = upload_to_dropbox(backup_path)
+        print(f"📤 Backup subido correctamente a Dropbox: {dest_path}")
+
+        # Intentar generar enlace directo
+        from .upload_dropbox import get_dropbox_share_link
+        link = get_dropbox_share_link(backup_name)
+        if link:
+            print(f"🔗 Enlace de descarga directa: {link}")
+            return JsonResponse({
+                'message': 'Backup creado y subido a Dropbox correctamente.',
+                'backup_file': backup_name,
+                'dropbox_link': link
+            })
+        else:
+            print("⚠️ No se pudo generar el enlace compartido de Dropbox.")
+            return JsonResponse({
+                'message': 'Backup creado y subido, pero sin enlace disponible.',
+                'backup_file': backup_name
+            })
+    except Exception as e:
+        print(f"⚠️ Error al subir a Dropbox: {e}")
+        return JsonResponse({
+            'message': 'Backup creado localmente, pero error al subir a Dropbox.',
+            'backup_file': backup_name,
+            'error': str(e)
+        })
+
 
 
 @api_view(['GET'])

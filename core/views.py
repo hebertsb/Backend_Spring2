@@ -52,9 +52,28 @@ def crear_checkout_session(request):
 
 
 load_dotenv()
-client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1"
-)
+
+
+def get_openai_client():
+    """Intentar crear y devolver un cliente OpenAI compatible con distintas versiones.
+
+    Primero intenta usar la forma con `base_url` (para GROQ). Si falla por incompatibilidades
+    (por ejemplo TypeError al pasar argumentos no esperados), intenta sin `base_url`.
+    Si ambas fallan, propaga la excepción para que el handler devuelva un error manejable.
+    """
+    from openai import OpenAI as _OpenAI
+
+    api_key = os.getenv("GROQ_API_KEY")
+    # Intento 1: con base_url (para GROQ)
+    try:
+        return _OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+    except TypeError:
+        # Posible incompatibilidad con la versión instalada; intentar sin base_url
+        try:
+            return _OpenAI(api_key=api_key)
+        except Exception:
+            # Propagar para que el handler lo capture
+            raise
 
 
 @api_view(["POST"])
@@ -113,6 +132,9 @@ Recuerda: Responde como un asistente amable y profesional de turismo boliviano.
     """
 
     try:
+        # Inicializar cliente OpenAI de forma perezosa para evitar fallos en import time
+        client = get_openai_client()
+
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[

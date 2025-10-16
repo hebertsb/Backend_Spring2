@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
 
 load_dotenv()
 
@@ -33,15 +34,14 @@ SECRET_KEY = 'django-insecure-1)v771jj-q%urr%(e@q)ug!^b2$l_mxr^f=4h#$id^h==+_m-&
 DEBUG = True
 
 ALLOWED_HOSTS = [
+    'backendspring2-production.up.railway.app',
+    'turismosi2.netlify.app',
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
     '192.168.0.1',
-    # local machine Wi-Fi IP (allow mobile devices on same LAN)
     '192.168.0.6',
-    # Virtualbox / host-only adapter (if present)
     '192.168.56.1',
-    'https://turismosi2.netlify.app/'
 ]
 
 
@@ -81,6 +81,8 @@ CORS_ALLOWED_ORIGINS = [
     # Allow local device dev servers (React Native / local web debug)
     'http://192.168.0.6:3000',
     'http://192.168.56.1:3000',
+    # Frontend desplegado en Netlify
+    'https://turismosi2.netlify.app',
 ]
 
 # For development you can also allow all origins (use carefully):
@@ -109,13 +111,21 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default="postgresql://postgres:MgkKJZpxQFrBcOFybMsTusmzojTWPqnt@shuttle.proxy.rlwy.net:24694/railway",
+        conn_max_age=600,
+        ssl_require=False,  # usa True si Railway requiere SSL
+    )
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
