@@ -113,21 +113,21 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+DATABASES = {
+     'default': {
+         'ENGINE': 'django.db.backends.sqlite3',
+         'NAME': BASE_DIR / 'db.sqlite3',
+     }
+ }
 
 
-def _mask_db_url(url: str) -> str:
-    try:
-        p = urlparse(url)
-        pw_flag = "HAS_PASSWORD" if p.password else "NO_PASSWORD"
-        return f"{p.scheme}://{p.username}:{pw_flag}@{p.hostname}:{p.port}{p.path}"
-    except Exception:
-        return "<invalid_db_url>"
+#def _mask_db_url(url: str) -> str:
+#   try:
+#       p = urlparse(url)
+#       pw_flag = "HAS_PASSWORD" if p.password else "NO_PASSWORD"
+#      return f"{p.scheme}://{p.username}:{pw_flag}@{p.hostname}:{p.port}{p.path}"
+#    except Exception:
+#       return "<invalid_db_url>"
 
 
 # Intentar usar la URL del entorno
@@ -135,25 +135,18 @@ DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or
 
 # Si viene vacía o contiene placeholders (${...}), reconstruir usando POSTGRES_* o RAILWAY_* vars
 def _env_clean(*names):
-    """Return first env var value that doesn't look like a template placeholder.
-
-    This ignores values that contain common unexpanded template markers or stray
-    braces so we don't accidentally use malformed values coming from CI/CD
-    platforms or bad .env files.
-    """
+    """Retorna la primera variable de entorno válida (sin placeholders)."""
     for n in names:
         v = os.getenv(n)
         if not v:
             continue
-        # ignore values that contain unexpanded placeholders or stray braces
-        if "${" in v or "}}" in v or "{" in v or "}" in v:
+        if "${" in v or "}}" in v or "{" in v or "}":
             continue
         return v
     return None
 
 
-# If DATABASE_URL is completely missing or obviously contains template markers or
-# stray braces, rebuild it from POSTGRES_/RAILWAY_ environment variables.
+# Si DATABASE_URL no existe o está mal formada, reconstruirla desde variables Postgres o Railway
 if not DATABASE_URL or any(bad in DATABASE_URL for bad in ("${", "{", "}")):
     pg_user = _env_clean("PGUSER", "POSTGRES_USER") or "postgres"
     pg_password = _env_clean("PGPASSWORD", "POSTGRES_PASSWORD") or ""
@@ -162,25 +155,20 @@ if not DATABASE_URL or any(bad in DATABASE_URL for bad in ("${", "{", "}")):
     pg_db = _env_clean("PGDATABASE", "POSTGRES_DB") or "railway"
 
     DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
-    # Mostrar versión mascarada (no expone la contraseña). Only print in DEBUG.
-    if DEBUG:
-        print(f"⚙️ DATABASE_URL reconstruida automáticamente: {_mask_db_url(DATABASE_URL)}")
+    print(f"⚙️ DATABASE_URL reconstruida automáticamente: {DATABASE_URL}")
+    
 
-
-# Configurar Django DB usando dj-database-url
-# En producción suele requerirse SSL; ajusta ssl_require según tu proveedor
-# Si estamos en DEBUG y la DATABASE_URL viene vacía o con placeholders, usar SQLite local
+# Leer nuevamente la URL original del entorno
 orig_env = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or ""
 
-# Helper to detect local hostnames
+# Detectar si es local
 def _is_local_host(h: str) -> bool:
     return h in ("localhost", "127.0.0.1", "0.0.0.0")
 
-# If DEBUG and the original env looks like a template or is missing, prefer SQLite
-# to avoid blocking local development (migrations/tests).
+# Validar si la original es válida
 bad_orig = not orig_env or any(bad in orig_env for bad in ("${", "{", "}"))
 
-# Try to parse DATABASE_URL to validate it and decide SSL requirement.
+# Intentar parsear el host
 parsed_host = None
 try:
     p = urlparse(DATABASE_URL)
@@ -188,7 +176,7 @@ try:
 except Exception:
     parsed_host = None
 
-# Determine ssl requirement. Allow override with DB_SSL env var (0/false -> disable).
+# Determinar si se requiere SSL
 _db_ssl_env = os.getenv("DB_SSL")
 def _is_falsey(v):
     return str(v).lower() in ("0", "false", "no", "off", "")
@@ -196,10 +184,11 @@ def _is_falsey(v):
 if _db_ssl_env is not None:
     ssl_required = not _is_falsey(_db_ssl_env)
 else:
-    # infer: disable SSL for local hosts, enable otherwise
     ssl_required = not (parsed_host and _is_local_host(parsed_host))
 
+# Configuración final
 if DEBUG and (not DATABASE_URL or bad_orig or not parsed_host):
+    print("⚠️ Usando base de datos SQLite (modo desarrollo).")
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -210,6 +199,7 @@ else:
     DATABASES = {
         "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=ssl_required)
     }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
