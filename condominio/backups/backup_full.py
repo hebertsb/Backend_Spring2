@@ -25,7 +25,7 @@ MANAGE_PY = PROJECT_ROOT / "manage.py"
 # 🧩 Función principal de backup completo
 # =====================================================
 
-def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="sqlite"):
+def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="postgres"):
     from urllib.parse import urlparse
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -35,46 +35,108 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     print(f"📦 Creando backup temporal en: {temp_backup_dir}")
 
     # =====================================================
-    # 🗄️ Backup de base de datos (SQLite o PostgreSQL)
+    # 🗄️ Backup de base de datos (PostgreSQL o SQLite)
     # =====================================================
     if include_db:
-        DATABASE_URL = os.getenv("DATABASE_URL")
+        # Intentar obtener la URL de conexión de distintas fuentes
+        DATABASE_URL = (
+            os.getenv("DATABASE_URL")
+            or os.getenv("PG_URL")
+            or os.getenv("POSTGRES_URL")
+            or os.getenv("RAILWAY_DATABASE_URL")
+        )
 
-        if db_type.lower() == "sqlite" or not DATABASE_URL:
+        # 🔧 Reconstruir URL si contiene variables sin expandir (${...})
+        def _mask_db_url(url: str) -> str:
+            try:
+                from urllib.parse import urlparse
+                p = urlparse(url)
+                pw_flag = "HAS_PASSWORD" if p.password else "NO_PASSWORD"
+                return f"{p.scheme}://{p.username}:{pw_flag}@{p.hostname}:{p.port}{p.path}"
+            except Exception:
+                return "<invalid_db_url>"
+
+        if not DATABASE_URL or "${" in DATABASE_URL:
+            # Preferir variables POSTGRES_* si existen
+            pg_user = os.getenv("PGUSER") or os.getenv("POSTGRES_USER") or "postgres"
+            pg_password = os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD") or ""
+            pg_host = os.getenv("RAILWAY_PRIVATE_DOMAIN") or os.getenv("RAILWAY_TCP_PROXY_DOMAIN") or "localhost"
+            pg_port = os.getenv("PGPORT") or os.getenv("RAILWAY_TCP_PROXY_PORT") or "5432"
+            pg_db = os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB") or "railway"
+
+            DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
+            print(f"⚙️ DATABASE_URL reconstruida automáticamente: {_mask_db_url(DATABASE_URL)}")
+
+        # ------------------- PostgreSQL -------------------
+        if db_type.lower() == "postgres":
+            try:
+                print("💾 Realizando backup de PostgreSQL completo...")
+
+                parsed = urlparse(DATABASE_URL)
+                pg_user = parsed.username
+                pg_password = parsed.password
+                pg_host = parsed.hostname
+                pg_port = parsed.port or "5432"
+                pg_db = parsed.path.lstrip("/")
+
+                pg_dump_file = temp_backup_dir / f"postgres_dump_{timestamp}.sql"
+                os.environ["PGPASSWORD"] = pg_password or ""
+
+                # Comprobar si pg_dump existe en el PATH
+                try:
+                    from shutil import which
+                    if not which("pg_dump"):
+                        msg = "❌ pg_dump no está disponible en el PATH. Asegúrate de que la herramienta 'pg_dump' esté instalada en el entorno de ejecución."
+                        print(msg)
+                        # crear un archivo marker para facilitar diagnóstico remoto
+                        marker = temp_backup_dir / "pg_dump_not_found.txt"
+                        marker.write_text(msg)
+                    else:
+                        # Ejecutar pg_dump y capturar stdout/stderr para diagnóstico
+                        result = subprocess.run([
+                            "pg_dump",
+                            "-U", pg_user,
+                            "-h", pg_host,
+                            "-p", str(pg_port),
+                            "-d", pg_db,
+                            "-F", "p",  # formato plano SQL (restaurable con psql)
+                            "-f", str(pg_dump_file)
+                        ], capture_output=True, text=True)
+
+                        print(f"pg_dump returncode={result.returncode}")
+                        if result.stdout:
+                            print("pg_dump stdout:")
+                            print(result.stdout)
+                        if result.stderr:
+                            print("pg_dump stderr:")
+                            print(result.stderr)
+
+                        if result.returncode == 0 and pg_dump_file.exists():
+                            print(f"✅ Dump de PostgreSQL generado: {pg_dump_file.name}")
+                        else:
+                            msg = (
+                                "❌ Error: No se generó dump de PostgreSQL. "
+                                "Revisar credenciales, disponibilidad de pg_dump o permisos. "
+                                f"Comando pg_dump intentó escribir en: {pg_dump_file}\n"
+                            )
+                            print(msg)
+                            # escribir detalle de error para inspección remota
+                            marker = temp_backup_dir / "pg_dump_failed.txt"
+                            details = f"returncode={getattr(result, 'returncode', 'N/A')}\n"
+                            details += f"stderr:\n{getattr(result, 'stderr', '')}\n"
+                            details += f"stdout:\n{getattr(result, 'stdout', '')}\n"
+                            marker.write_text(details)
+                except Exception as e:
+                    print(f"❌ Error ejecutando pg_dump: {e}")
+            except Exception as e:
+                print(f"❌ Error ejecutando pg_dump: {e}")
+        else:
             # ------------------- SQLite -------------------
             if SQLITE_FILE.exists():
                 shutil.copy(SQLITE_FILE, temp_backup_dir / SQLITE_FILE.name)
                 print(f"🗄️ Base de datos SQLite copiada: {SQLITE_FILE.name}")
             else:
                 print("⚠️ No se encontró archivo de base de datos SQLite.")
-        else:
-            # ------------------- PostgreSQL -------------------
-            print("💾 Realizando backup de PostgreSQL completo...")
-
-            parsed = urlparse(DATABASE_URL)
-            pg_user = parsed.username
-            pg_password = parsed.password
-            pg_host = parsed.hostname
-            pg_port = parsed.port or "5432"
-            pg_db = parsed.path.lstrip("/")
-
-            pg_dump_file = temp_backup_dir / f"postgres_dump_{timestamp}.sql"
-            os.environ["PGPASSWORD"] = pg_password or ""
-
-            result = subprocess.run([
-                "pg_dump",
-                "-U", pg_user,
-                "-h", pg_host,
-                "-p", str(pg_port),
-                "-d", pg_db,
-                "-F", "p",  # formato plano SQL (restaurable con psql)
-                "-f", str(pg_dump_file)
-            ])
-
-            if result.returncode == 0:
-                print(f"✅ Dump de PostgreSQL generado: {pg_dump_file.name}")
-            else:
-                print("❌ Error al realizar backup de PostgreSQL. Verificá las credenciales o pg_dump.")
 
     # =====================================================
     # ⚙️ Backup del backend (código fuente)
@@ -131,7 +193,6 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
         dest_path = upload_to_dropbox(zip_file)
         print(f"📤 Backup subido correctamente a Dropbox: {dest_path}")
 
-        # Generar enlace directo
         link = get_dropbox_share_link(os.path.basename(zip_file))
         if link:
             print(f"🔗 Enlace de descarga directa: {link}")

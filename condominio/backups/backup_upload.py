@@ -11,7 +11,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DROPBOX_TOKEN = os.getenv("DROPBOX_ACCESS_TOKEN")
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+# Normalizar PROJECT_ROOT: si no está en env, usar la ruta relativa al propio archivo
+try:
+    PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT") or Path(__file__).resolve().parent.parent.parent)
+except Exception:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
 BACKUP_ROOT = PROJECT_ROOT / "backups"
 DB_FILE = PROJECT_ROOT / "db.sqlite3"  # Cambiar si usas PostgreSQL
 

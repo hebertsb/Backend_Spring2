@@ -2,123 +2,100 @@ import os
 import shutil
 from django.conf import settings
 from django.http import JsonResponse, FileResponse, Http404
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser
+from rest_framework.decorators import api_view
 from datetime import datetime
 import zipfile
+from pathlib import Path
+import traceback
+
+# Importaciones de módulos internos
 from .utils import BACKUP_DIR
 from condominio.backups.restore_backup import restore_backup
-from condominio.backups.utils import BACKUP_DIR
-from pathlib import Path
-from .upload_dropbox import upload_to_dropbox, list_backups_dropbox, download_from_dropbox
+from condominio.backups.upload_dropbox import (
+    upload_to_dropbox,
+    list_backups_dropbox,
+    download_from_dropbox,
+    get_dropbox_share_link
+)
+from condominio.backups.backup_full import run_backup
 
 
-#BACKUP_DIR = os.path.join(settings.BASE_DIR, 'condominio', 'backups')
-# Crear carpeta si no existe
-#os.makedirs(BACKUP_DIR, exist_ok=True)
+# ============================================================
+# 🚀 CREAR BACKUP COMPLETO (POSTGRES + BACKEND + FIXTURES)
+# ============================================================
 
 @api_view(['POST'])
 def crear_backup(request):
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_name = f'backup_{timestamp}.zip'
-    backup_path = os.path.join(BACKUP_DIR, backup_name)
-
-    # Ruta de la base de datos
-    db_path = settings.DATABASES['default']['NAME']
-
-    # Directorio raíz del proyecto (donde está manage.py)
-    project_root = settings.BASE_DIR
-
-    # Carpetas que queremos incluir explícitamente
-    include_dirs = ['condominio', 'core', 'authz', 'config', 'scripts']
-
-    # Carpetas a excluir dentro del recorrido
-    exclude_dirs = ['venv', 'node_modules', 'backups', '__pycache__']
-
-    # =====================================
-    # 🧩 Crear backup local
-    # =====================================
-    with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Agregar base de datos
-        if os.path.exists(db_path):
-            zipf.write(db_path, os.path.basename(db_path))
-
-        # Agregar archivos de las carpetas del backend
-        for include_dir in include_dirs:
-            include_path = os.path.join(project_root, include_dir)
-            if not os.path.exists(include_path):
-                continue
-
-            for foldername, subfolders, filenames in os.walk(include_path):
-                subfolders[:] = [f for f in subfolders if f not in exclude_dirs]
-                for filename in filenames:
-                    if any(ex in foldername for ex in exclude_dirs):
-                        continue
-                    filepath = os.path.join(foldername, filename)
-                    relpath = os.path.relpath(filepath, project_root)
-                    zipf.write(filepath, relpath)
-
-        # Agregar archivos raíz
-        for filename in os.listdir(project_root):
-            if filename in ['manage.py', 'requirements.txt', '.env']:
-                filepath = os.path.join(project_root, filename)
-                zipf.write(filepath, os.path.basename(filepath))
-
-    print(f"✅ Backup local creado: {backup_path}")
-
-    # =====================================
-    # ☁️ Subir a Dropbox automáticamente
-    # =====================================
+    """
+    Crea un backup completo del sistema:
+    - Incluye la base de datos PostgreSQL (usando DATABASE_URL)
+    - Incluye el código backend (condominio, core, authz, config)
+    - Incluye fixtures JSON
+    - Sube el ZIP resultante a Dropbox y devuelve el enlace directo.
+    """
     try:
-        dest_path = upload_to_dropbox(backup_path)
-        print(f"📤 Backup subido correctamente a Dropbox: {dest_path}")
+        print("🚀 Iniciando creación de backup completo desde API...")
 
-        # Intentar generar enlace directo
-        from .upload_dropbox import get_dropbox_share_link
-        link = get_dropbox_share_link(backup_name)
-        if link:
-            print(f"🔗 Enlace de descarga directa: {link}")
-            return JsonResponse({
-                'message': 'Backup creado y subido a Dropbox correctamente.',
-                'backup_file': backup_name,
-                'dropbox_link': link
-            })
-        else:
-            print("⚠️ No se pudo generar el enlace compartido de Dropbox.")
-            return JsonResponse({
-                'message': 'Backup creado y subido, pero sin enlace disponible.',
-                'backup_file': backup_name
-            })
-    except Exception as e:
-        print(f"⚠️ Error al subir a Dropbox: {e}")
+        # Parámetros opcionales
+        include_backend = request.data.get('include_backend', True)
+        include_db = request.data.get('include_db', True)
+        db_type = request.data.get('db_type', 'postgres')
+
+        # Ejecutar el proceso completo de backup
+        run_backup(
+            include_backend=include_backend,
+            include_db=include_db,
+            db_type=db_type
+        )
+
+        # Buscar el archivo ZIP más reciente
+        backups = sorted(
+            [f for f in os.listdir(BACKUP_DIR) if f.startswith("full_backup_") and f.endswith(".zip")],
+            key=lambda x: os.path.getmtime(os.path.join(BACKUP_DIR, x)),
+            reverse=True
+        )
+
+        if not backups:
+            return JsonResponse({"error": "No se generó ningún archivo de backup."}, status=500)
+
+        latest_backup = backups[0]
+        dropbox_path = f"/backups/{latest_backup}"
+
+        # Intentar generar enlace de Dropbox
+        link = get_dropbox_share_link(latest_backup)
+
+        print(f"✅ Backup generado: {latest_backup}")
+        print(f"🔗 Enlace Dropbox: {link}")
+
         return JsonResponse({
-            'message': 'Backup creado localmente, pero error al subir a Dropbox.',
-            'backup_file': backup_name,
-            'error': str(e)
+            "message": "Backup completo generado y subido correctamente.",
+            "backup_file": latest_backup,
+            "dropbox_path": dropbox_path,
+            "dropbox_link": link or "No disponible"
         })
 
+    except Exception as e:
+        print("❌ Error al crear backup:", e)
+        traceback.print_exc()
+        return JsonResponse({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }, status=500)
 
+
+# ============================================================
+# 📋 LISTAR BACKUPS LOCALES
+# ============================================================
 
 @api_view(['GET'])
-#@permission_classes([IsAdminUser])
 def listar_backups(request):
     backups = [f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')]
     return JsonResponse({'backups': backups})
 
-@api_view(['POST'])
-#@permission_classes([IsAdminUser])
-def restaurar_backup(request):
-    backup_file = request.data.get('backup_file')
-    if not backup_file or not os.path.exists(os.path.join(BACKUP_DIR, backup_file)):
-        return JsonResponse({'error': 'Backup no encontrado'}, status=400)
 
-    backup_path = os.path.join(BACKUP_DIR, backup_file)
-
-    # Extraer contenido
-    with zipfile.ZipFile(backup_path, 'r') as zipf:
-        zipf.extractall(settings.BASE_DIR)
-
-    return JsonResponse({'message': f'Backup {backup_file} restaurado correctamente'})
+# ============================================================
+# ♻️ RESTAURAR BACKUP LOCAL
+# ============================================================
 
 def parse_bool(value, default=True):
     if isinstance(value, bool):
@@ -126,6 +103,7 @@ def parse_bool(value, default=True):
     if isinstance(value, str):
         return value.lower() == "true"
     return default
+
 
 @api_view(['POST'])
 def restaurar_backup(request):
@@ -137,11 +115,9 @@ def restaurar_backup(request):
     if not backup_path.exists():
         return JsonResponse({'error': 'Backup no encontrado'}, status=400)
 
-    # Leer opciones de restauración (acepta bool o string)
     restore_code = parse_bool(request.data.get('restore_code', True))
     restore_db = parse_bool(request.data.get('restore_db', True))
 
-    # Ejecutar restore
     result = restore_backup(
         backup_zip_path=backup_path,
         restore_code=restore_code,
@@ -152,6 +128,10 @@ def restaurar_backup(request):
         return JsonResponse(result, status=400)
     return JsonResponse(result)
 
+
+# ============================================================
+# ⬇️ DESCARGAR BACKUP LOCAL
+# ============================================================
 
 @api_view(['GET'])
 def descargar_backup(request, filename):
@@ -167,6 +147,10 @@ def descargar_backup(request, filename):
     response['Content-Disposition'] = f'attachment; filename="{file_path.name}"'
     return response
 
+
+# ============================================================
+# 🗑️ ELIMINAR BACKUP LOCAL
+# ============================================================
 
 @api_view(['DELETE'])
 def eliminar_backup(request, filename):
@@ -185,7 +169,10 @@ def eliminar_backup(request, filename):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-##### para dropbox ###
+# ============================================================
+# ☁️ FUNCIONES DE DROPBOX
+# ============================================================
+
 @api_view(['GET'])
 def listar_backups_dropbox(request):
     """Lista los backups almacenados en Dropbox."""
@@ -220,7 +207,6 @@ def restaurar_desde_dropbox(request):
         restore_code = restore_type in ('total', 'backend', 'frontend')
         restore_db = restore_type in ('total', 'base')
 
-        # Ejecutar restauración
         result = restore_backup(Path(local_path), restore_code=restore_code, restore_db=restore_db)
 
         return JsonResponse({

@@ -4,6 +4,7 @@ import zipfile
 import shutil
 from pathlib import Path
 import subprocess
+from urllib.parse import urlparse
 from condominio.backups.utils import BACKUP_DIR  # Usa la ruta centralizada
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -56,12 +57,37 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
     if restore_db:
         print("🗄️ Restaurando base de datos...")
 
-        from urllib.parse import urlparse
-        DATABASE_URL = os.getenv("DATABASE_URL")
-
+        # Buscar archivo de base de datos dentro del backup
         sqlite_file = temp_dir / "db.sqlite3"
         postgres_dump = next(temp_dir.glob("*.sql"), None)
         json_files = list(temp_dir.glob("*.json"))
+
+        # Obtener configuración de Postgres (similar a backup_full.py)
+        DATABASE_URL = (
+            os.getenv("DATABASE_URL")
+            or os.getenv("PG_URL")
+            or os.getenv("POSTGRES_URL")
+            or os.getenv("RAILWAY_DATABASE_URL")
+        )
+
+        def _mask_db_url(url: str) -> str:
+            try:
+                from urllib.parse import urlparse
+                p = urlparse(url)
+                pw_flag = "HAS_PASSWORD" if p.password else "NO_PASSWORD"
+                return f"{p.scheme}://{p.username}:{pw_flag}@{p.hostname}:{p.port}{p.path}"
+            except Exception:
+                return "<invalid_db_url>"
+
+        if not DATABASE_URL or "${" in DATABASE_URL:
+            pg_user = os.getenv("PGUSER") or os.getenv("POSTGRES_USER") or "postgres"
+            pg_password = os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD") or ""
+            pg_host = os.getenv("RAILWAY_PRIVATE_DOMAIN") or os.getenv("RAILWAY_TCP_PROXY_DOMAIN") or "localhost"
+            pg_port = os.getenv("PGPORT") or os.getenv("RAILWAY_TCP_PROXY_PORT") or "5432"
+            pg_db = os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB") or "railway"
+
+            DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
+            print(f"⚙️ DATABASE_URL reconstruida automáticamente: {_mask_db_url(DATABASE_URL)}")
 
         # ------------------- SQLite -------------------
         if sqlite_file.exists():
@@ -74,36 +100,37 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
         # ------------------- PostgreSQL -------------------
         elif postgres_dump:
             print(f"🔄 Restaurando dump PostgreSQL: {postgres_dump.name}")
-
-            if DATABASE_URL:
-                parsed = urlparse(DATABASE_URL)
-                pg_user = parsed.username
-                pg_password = parsed.password
-                pg_host = parsed.hostname
-                pg_port = parsed.port or "5432"
-                pg_db = parsed.path.lstrip("/")
-            else:
-                pg_user = os.getenv("POSTGRES_USER", "postgres")
-                pg_password = os.getenv("POSTGRES_PASSWORD", "")
-                pg_host = os.getenv("POSTGRES_HOST", "localhost")
-                pg_port = os.getenv("POSTGRES_PORT", "5432")
-                pg_db = os.getenv("POSTGRES_DB", "mydatabase")
-
+            parsed = urlparse(DATABASE_URL)
+            pg_user = parsed.username
+            pg_password = parsed.password
+            pg_host = parsed.hostname
+            pg_port = parsed.port or "5432"
+            pg_db = parsed.path.lstrip("/")
             os.environ["PGPASSWORD"] = pg_password or ""
 
-            result = subprocess.run([
-                "pg_restore",
-                "-U", pg_user,
-                "-h", pg_host,
-                "-p", str(pg_port),
-                "-d", pg_db,
-                str(postgres_dump)
-            ])
-
-            if result.returncode == 0:
+            # Intentar restaurar con pg_restore, y si falla, usar psql
+            try:
+                result = subprocess.run([
+                    "pg_restore",
+                    "-U", pg_user,
+                    "-h", pg_host,
+                    "-p", str(pg_port),
+                    "-d", pg_db,
+                    str(postgres_dump)
+                ])
+                if result.returncode != 0:
+                    print("⚠️ pg_restore falló, intentando con psql...")
+                    subprocess.run([
+                        "psql",
+                        "-U", pg_user,
+                        "-h", pg_host,
+                        "-p", str(pg_port),
+                        "-d", pg_db,
+                        "-f", str(postgres_dump)
+                    ])
                 print("✅ Base de datos PostgreSQL restaurada correctamente.")
-            else:
-                print("❌ Error al restaurar la base de datos PostgreSQL.")
+            except Exception as e:
+                print(f"❌ Error al restaurar PostgreSQL: {e}")
 
         # ------------------- JSON Fixtures -------------------
         elif json_files:
@@ -135,7 +162,7 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Restore backup Django")
+    parser = argparse.ArgumentParser(description="Restore backup Django (SQLite, PostgreSQL o fixtures)")
     parser.add_argument("--select", action="store_true", help="Seleccionar backup a restaurar")
     parser.add_argument("--no-code", action="store_true", help="No restaurar código")
     parser.add_argument("--no-db", action="store_true", help="No restaurar base de datos")
