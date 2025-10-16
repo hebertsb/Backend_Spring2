@@ -110,3 +110,32 @@ def download_from_dropbox(filename, local_dir):
     except Exception as e:
         print(f"❌ Error inesperado al descargar desde Dropbox: {e}")
         raise
+
+def get_dropbox_share_link(filename):
+    """
+    Genera o recupera un enlace compartido de Dropbox para el archivo especificado.
+    Retorna una URL de descarga directa (dl=1).
+    """
+    try:
+        dbx = get_dropbox_client()
+        dropbox_path = f"/backups/{filename}"
+
+        links = dbx.sharing_list_shared_links(path=dropbox_path).links
+        if links:
+            url = links[0].url
+        else:
+            link = dbx.sharing_create_shared_link_with_settings(dropbox_path)
+            url = link.url
+
+        url = url.replace("?dl=0", "?dl=1")
+        print(f"🔗 Enlace directo generado: {url}")
+        return url
+
+    except Exception as e:
+        print(f"⚠️ No se pudo generar enlace compartido: {e}")
+        return None
+    
+
+
+
+    
