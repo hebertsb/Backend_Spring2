@@ -89,7 +89,8 @@ class Reserva(TimeStampedModel):
     moneda = models.CharField(max_length=10, default='BOB')
     cliente = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='reservas')
     cupon = models.ForeignKey(Cupon, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservas')
-    
+    servicio = models.ForeignKey('Servicio', on_delete=models.CASCADE, related_name='reservas', null=True, blank=True)
+    paquete = models.ForeignKey('Paquete', on_delete=models.CASCADE, related_name='reservas', null=True, blank=True)
     # 🔄 Campos para reprogramación
     fecha_original = models.DateTimeField(null=True, blank=True, help_text="Fecha original antes de reprogramar")
     fecha_reprogramacion = models.DateTimeField(null=True, blank=True, help_text="Última fecha de reprogramación")

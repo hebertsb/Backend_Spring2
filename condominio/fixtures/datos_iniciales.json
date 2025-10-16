@@ -325,7 +325,9 @@
       "fecha": "2025-10-01",
       "total": "250.00",
       "cliente": 1,
-      "cupon": 1
+      "cupon": 1,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -335,7 +337,9 @@
       "fecha": "2025-09-28",
       "total": "320.00",
       "cliente": 2,
-      "cupon": 2
+      "cupon": 2,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -345,7 +349,9 @@
       "fecha": "2025-09-15",
       "total": "150.00",
       "cliente": 3,
-      "cupon": null
+      "cupon": null,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -355,7 +361,9 @@
       "fecha": "2025-09-10",
       "total": "450.00",
       "cliente": 3,
-      "cupon": 3
+      "cupon": 3,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -365,7 +373,9 @@
       "fecha": "2025-08-30",
       "total": "180.00",
       "cliente": 2,
-      "cupon": null
+      "cupon": null,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -375,7 +385,9 @@
       "fecha": "2025-07-25",
       "total": "600.00",
       "cliente": 1,
-      "cupon": 4
+      "cupon": 4,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -385,7 +397,9 @@
       "fecha": "2025-06-18",
       "total": "200.00",
       "cliente": 3,
-      "cupon": 5
+      "cupon": 5,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -395,7 +409,9 @@
       "fecha": "2025-06-01",
       "total": "350.00",
       "cliente": 2,
-      "cupon": 6
+      "cupon": 6,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -405,7 +421,9 @@
       "fecha": "2025-05-21",
       "total": "410.00",
       "cliente": 1,
-      "cupon": 7
+      "cupon": 7,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {
@@ -415,7 +433,9 @@
       "fecha": "2025-04-10",
       "total": "280.00",
       "cliente": 2,
-      "cupon": 8
+      "cupon": 8,
+      "servicio": 1,
+      "paquete": null
     }
   },
   {

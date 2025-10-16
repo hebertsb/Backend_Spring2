@@ -539,7 +539,11 @@ class ServicioViewSet(viewsets.ModelViewSet):
 # 🧾 RESERVA
 # =====================================================
 class ReservaViewSet(AuditedModelViewSet):
-    queryset = Reserva.objects.select_related('cliente', 'cupon').all()
+    queryset = (
+        Reserva.objects
+        .select_related('cliente', 'cupon', 'paquete', 'servicio')
+        .all()
+    )
     serializer_class = ReservaSerializer
     permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
@@ -547,225 +551,150 @@ class ReservaViewSet(AuditedModelViewSet):
     filterset_fields = ['estado', 'moneda', 'cliente']
 
     # ===============================
-    # PROVISIONAL: Override create to forzar estado='PAGADA' (eliminar 'PENDIENTE')
+    # CREACIÓN FORZANDO ESTADO PAGADA
     # ===============================
     def create(self, request, *args, **kwargs):
-        # Copiar los datos y forzar estado='PAGADA'
         data = request.data.copy()
-        data['estado'] = 'PAGADA'  # PROVISIONAL: Forzar estado pagada
+        data['estado'] = 'PAGADA'
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-
+    # ===============================
+    # FILTRAR SEGÚN USUARIO AUTENTICADO
+    # ===============================
     def get_queryset(self):
-        """
-        Filtrar reservas según el usuario autenticado
-        Si está autenticado, mostrar solo sus reservas
-        """
         queryset = super().get_queryset()
         user = self.request.user
-        
+
         if user.is_authenticated:
-            # Si el usuario está autenticado, mostrar solo sus reservas
             perfil = get_user_perfil(user)
             if perfil:
-                # Si es admin/staff, ver todas; si es cliente, solo las suyas
                 if hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in ['admin', 'soporte']:
-                    return queryset  # Admin ve todas las reservas
+                    return queryset
                 else:
-                    return queryset.filter(cliente=perfil)  # Cliente ve solo las suyas
+                    return queryset.filter(cliente=perfil)
             else:
-                return queryset.none()  # Sin perfil, no ver nada
-        
-        return queryset  # Usuario no autenticado ve todo (para compatibilidad)
+                return queryset.none()
+        return queryset
 
+    # ===============================
+    # MIS RESERVAS (SOLO CLIENTE)
+    # ===============================
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def mis_reservas(self, request):
-        """Endpoint específico para que el cliente vea solo sus reservas"""
         user = request.user
         perfil = get_user_perfil(user)
-        
+
         if not perfil:
             return Response(
-                {'error': 'No se encontró el perfil del usuario'}, 
+                {'error': 'No se encontró el perfil del usuario'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
-        # Obtener reservas del usuario con información relacionada
-        reservas = Reserva.objects.filter(cliente=perfil).select_related(
-            'cliente', 'cupon'
-        ).prefetch_related(
-            'visitantes__visitante'
-        ).order_by('-created_at')
-        
-        # Filtros opcionales (compatible con DRF y Django)
-        query_params = getattr(request, 'query_params', request.GET)
-        
-        estado = query_params.get('estado', None)
+
+        # 🔹 Consultar reservas del usuario con toda la información relacionada
+        reservas = (
+            Reserva.objects.filter(cliente=perfil)
+            .select_related('cliente', 'cupon', 'paquete', 'servicio')
+            .prefetch_related('visitantes__visitante')
+            .order_by('-created_at')
+        )
+
+        # 🔹 Filtros opcionales
+        estado = request.query_params.get('estado')
         if estado:
-            reservas = reservas.filter(estado=estado)
-        
-        fecha_desde = query_params.get('fecha_desde', None)
+            reservas = reservas.filter(estado__iexact=estado)
+
+        fecha_desde = request.query_params.get('fecha_desde')
         if fecha_desde:
             reservas = reservas.filter(fecha__gte=fecha_desde)
-        
-        fecha_hasta = query_params.get('fecha_hasta', None)
+
+        fecha_hasta = request.query_params.get('fecha_hasta')
         if fecha_hasta:
             reservas = reservas.filter(fecha__lte=fecha_hasta)
-        
-        # Serializar con información completa
+
+        # 🔹 Serializar
         serializer = ReservaSerializer(reservas, many=True)
-        
-        # Añadir estadísticas
+
+        # 🔹 Calcular estadísticas de forma robusta
         stats = {
             'total_reservas': reservas.count(),
             'por_estado': {
-                'PENDIENTE': reservas.filter(estado='PENDIENTE').count(),
-                'CONFIRMADA': reservas.filter(estado='CONFIRMADA').count(),
-                'PAGADA': reservas.filter(estado='PAGADA').count(),
-                'CANCELADA': reservas.filter(estado='CANCELADA').count(),
-                'COMPLETADA': reservas.filter(estado='COMPLETADA').count(),
-                'REPROGRAMADA': reservas.filter(estado='REPROGRAMADA').count(),
-            }
+                nombre: reservas.filter(estado=clave).count()
+                for clave, nombre in Reserva.ESTADOS
+            },
+            'activas': reservas.filter(estado__in=['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'REPROGRAMADA']).count(),
+            'completadas': reservas.filter(estado='COMPLETADA').count(),
+            'canceladas': reservas.filter(estado='CANCELADA').count(),
         }
-        
-        return Response({
+
+        # 🔹 Respuesta estructurada compatible con frontend
+        data = {
             'estadisticas': stats,
             'reservas': serializer.data
-        })
+        }
 
+        # 🔹 Logging opcional (debug)
+        # print("✅ Enviando reservas:", len(serializer.data))
+
+        return Response(data, status=status.HTTP_200_OK)
+    # ===============================
+    # RESERVAS ACTIVAS
+    # ===============================
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def reservas_activas(self, request):
-        """Reservas activas (no canceladas ni completadas)"""
         user = request.user
         perfil = get_user_perfil(user)
-        
         if not perfil:
-            return Response(
-                {'error': 'No se encontró el perfil del usuario'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        reservas_activas = Reserva.objects.filter(
-            cliente=perfil,
-            estado__in=['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'REPROGRAMADA']
-        ).select_related('cliente', 'cupon').order_by('-created_at')
-        
-        serializer = ReservaSerializer(reservas_activas, many=True)
-        
-        return Response({
-            'count': reservas_activas.count(),
-            'reservas_activas': serializer.data
-        })
+            return Response({'error': 'No se encontró el perfil del usuario'}, status=status.HTTP_404_NOT_FOUND)
 
+        reservas_activas = (
+            Reserva.objects.filter(
+                cliente=perfil,
+                estado__in=['PENDIENTE', 'CONFIRMADA', 'PAGADA', 'REPROGRAMADA']
+            )
+            .select_related('cliente', 'cupon', 'paquete', 'servicio')
+            .order_by('-created_at')
+        )
+        serializer = ReservaSerializer(reservas_activas, many=True)
+        return Response({'count': reservas_activas.count(), 'reservas_activas': serializer.data})
+
+    # ===============================
+    # HISTORIAL COMPLETO
+    # ===============================
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def historial_completo(self, request):
-        """Historial completo con reprogramaciones"""
         user = request.user
         perfil = get_user_perfil(user)
-        
         if not perfil:
-            return Response(
-                {'error': 'No se encontró el perfil del usuario'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        reservas = Reserva.objects.filter(cliente=perfil).select_related(
-            'cliente', 'cupon', 'reprogramado_por'
-        ).prefetch_related('historial_reprogramaciones').order_by('-created_at')
-        
+            return Response({'error': 'No se encontró el perfil del usuario'}, status=status.HTTP_404_NOT_FOUND)
+
+        reservas = (
+            Reserva.objects.filter(cliente=perfil)
+            .select_related('cliente', 'cupon', 'paquete', 'servicio', 'reprogramado_por')
+            .prefetch_related('historial_reprogramaciones')
+            .order_by('-created_at')
+        )
+
         historial_data = []
         for reserva in reservas:
             reserva_data = dict(ReservaSerializer(reserva).data)
-            
-            # Añadir historial de reprogramaciones usando consulta directa
-            historial_reprog = []
-            # Usar consulta directa para evitar problemas con Pylance
             historiales = HistorialReprogramacion.objects.filter(reserva=reserva)
-            for hist in historiales:
-                historial_reprog.append({
-                    'fecha_anterior': hist.fecha_anterior,
-                    'fecha_nueva': hist.fecha_nueva,
-                    'motivo': hist.motivo,
-                    'reprogramado_por': hist.reprogramado_por.nombre if hist.reprogramado_por else None,
-                    'fecha_cambio': hist.created_at
-                })
-            
-            reserva_data['historial_reprogramaciones'] = historial_reprog
+            reserva_data['historial_reprogramaciones'] = [
+                {
+                    'fecha_anterior': h.fecha_anterior,
+                    'fecha_nueva': h.fecha_nueva,
+                    'motivo': h.motivo,
+                    'reprogramado_por': h.reprogramado_por.nombre if h.reprogramado_por else None,
+                    'fecha_cambio': h.created_at
+                }
+                for h in historiales
+            ]
             historial_data.append(reserva_data)
-        
-        return Response({
-            'count': len(historial_data),
-            'historial': historial_data
-        })
+        return Response({'count': len(historial_data), 'historial': historial_data})
 
-    # Auditing hooks: create bitacora entries on create/update/destroy
-    def perform_create(self, serializer):
-        instance = serializer.save()
-        try:
-            # create a basic description with id and cliente
-            # Add extra context if request included paquete_id or servicio_id
-            req = getattr(self, 'request', None)
-            paquete_info = None
-            servicio_info = None
-            if req is not None:
-                try:
-                    data = getattr(req, 'data', {}) or {}
-                    paquete_id = data.get('paquete_id') or data.get('paquete')
-                    servicio_id = data.get('servicio_id') or data.get('servicio')
-
-                    if paquete_id:
-                        try:
-                            paquete_obj = Paquete.objects.filter(pk=paquete_id).first()
-                            if paquete_obj:
-                                paquete_info = f"paquete_id={paquete_obj.pk} nombre={paquete_obj.nombre}"
-                            else:
-                                paquete_info = f"paquete_id={paquete_id}"
-                        except Exception:
-                            paquete_info = f"paquete_id={paquete_id}"
-
-                    if servicio_id:
-                        try:
-                            servicio_obj = Servicio.objects.filter(pk=servicio_id).first()
-                            if servicio_obj:
-                                servicio_info = f"servicio_id={servicio_obj.pk} titulo={servicio_obj.titulo}"
-                            else:
-                                servicio_info = f"servicio_id={servicio_id}"
-                        except Exception:
-                            servicio_info = f"servicio_id={servicio_id}"
-                except Exception:
-                    # Don't fail logging if request data parsing fails
-                    pass
-
-            descripcion = f"Reserva creada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
-            if paquete_info:
-                descripcion += f" {paquete_info}"
-            if servicio_info:
-                descripcion += f" {servicio_info}"
-
-            log_bitacora(self.request, 'Crear Reserva', descripcion)
-        except Exception:
-            pass
-
-    def perform_update(self, serializer):
-        instance = serializer.save()
-        try:
-            descripcion = f"Reserva actualizada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
-            log_bitacora(self.request, 'Actualizar Reserva', descripcion)
-        except Exception:
-            pass
-
-    def perform_destroy(self, instance):
-        try:
-            descripcion = f"Reserva eliminada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
-            # we log before deletion so we can reference instance fields
-            log_bitacora(self.request, 'Eliminar Reserva', descripcion)
-        except Exception:
-            pass
-        instance.delete()
 
 
 # =====================================================
