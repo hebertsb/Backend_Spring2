@@ -576,11 +576,11 @@ class ReservaViewSet(AuditedModelViewSet):
             logger.info(f"[ReservaViewSet.get_queryset] user={user} perfil={perfil} rol={(getattr(perfil, 'rol', None))} rol_nombre={(getattr(getattr(perfil, 'rol', None), 'nombre', None))}")
             admin_roles = ['admin', 'soporte', 'administrador']
             if perfil and hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in admin_roles:
-                logger.info(f"[ReservaViewSet.get_queryset] ADMIN/SOPORTE: queryset count={queryset.count()}")
+                logger.info(f"[ReservaViewSet.get_queryset] ADMIN/SOPORTE: queryset count={queryset.count()} ids={[r.id for r in queryset]}")
                 return queryset
             elif perfil:
                 filtered = queryset.filter(cliente=perfil)
-                logger.info(f"[ReservaViewSet.get_queryset] CLIENTE: queryset count={filtered.count()}")
+                logger.info(f"[ReservaViewSet.get_queryset] CLIENTE: queryset count={filtered.count()} ids={[r.id for r in filtered]}")
                 return filtered
             else:
                 logger.info(f"[ReservaViewSet.get_queryset] SIN PERFIL: queryset vacío")
@@ -594,16 +594,20 @@ class ReservaViewSet(AuditedModelViewSet):
     # ===============================
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def mis_reservas(self, request):
+        import logging
+        logger = logging.getLogger("django")
         user = request.user
         perfil = get_user_perfil(user)
 
+        logger.info(f"[mis_reservas] user={user} perfil={perfil} perfil_id={getattr(perfil, 'id', None)}")
+
         if not perfil:
+            logger.info("[mis_reservas] No se encontró el perfil del usuario")
             return Response(
                 {'error': 'No se encontró el perfil del usuario'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # 🔹 Consultar reservas del usuario con toda la información relacionada
         reservas = (
             Reserva.objects.filter(cliente=perfil)
             .select_related('cliente', 'cupon', 'paquete', 'servicio')
@@ -611,23 +615,25 @@ class ReservaViewSet(AuditedModelViewSet):
             .order_by('-created_at')
         )
 
-        # 🔹 Filtros opcionales
+        logger.info(f"[mis_reservas] reservas count={reservas.count()} ids={[r.id for r in reservas]}")
+
         estado = request.query_params.get('estado')
         if estado:
             reservas = reservas.filter(estado__iexact=estado)
+            logger.info(f"[mis_reservas] filtro estado={estado} count={reservas.count()}")
 
         fecha_desde = request.query_params.get('fecha_desde')
         if fecha_desde:
             reservas = reservas.filter(fecha__gte=fecha_desde)
+            logger.info(f"[mis_reservas] filtro fecha_desde={fecha_desde} count={reservas.count()}")
 
         fecha_hasta = request.query_params.get('fecha_hasta')
         if fecha_hasta:
             reservas = reservas.filter(fecha__lte=fecha_hasta)
+            logger.info(f"[mis_reservas] filtro fecha_hasta={fecha_hasta} count={reservas.count()}")
 
-        # 🔹 Serializar
         serializer = ReservaSerializer(reservas, many=True)
 
-        # 🔹 Calcular estadísticas de forma robusta
         stats = {
             'total_reservas': reservas.count(),
             'por_estado': {
@@ -639,14 +645,12 @@ class ReservaViewSet(AuditedModelViewSet):
             'canceladas': reservas.filter(estado='CANCELADA').count(),
         }
 
-        # 🔹 Respuesta estructurada compatible con frontend
         data = {
             'estadisticas': stats,
             'reservas': serializer.data
         }
 
-        # 🔹 Logging opcional (debug)
-        # print("✅ Enviando reservas:", len(serializer.data))
+        logger.info(f"[mis_reservas] respuesta enviada reservas={len(serializer.data)}")
 
         return Response(data, status=status.HTTP_200_OK)
     # ===============================
