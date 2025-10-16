@@ -10,14 +10,14 @@ import traceback
 
 # Importaciones de módulos internos
 from .utils import BACKUP_DIR
-from condominio.backups.restore_backup import restore_backup
-from condominio.backups.upload_dropbox import (
+from .restore_backup import restore_backup
+from .upload_dropbox import (
     upload_to_dropbox,
     list_backups_dropbox,
     download_from_dropbox,
     get_dropbox_share_link
 )
-from condominio.backups.backup_full import run_backup
+from .backup_full import run_backup
 
 
 # ============================================================

@@ -7,7 +7,7 @@ import zipfile
 import argparse
 import sys
 from dotenv import load_dotenv
-from condominio.backups.upload_dropbox import upload_to_dropbox, get_dropbox_share_link
+from .upload_dropbox import upload_to_dropbox, get_dropbox_share_link
 
 # =====================================================
 # 🌍 Configuración inicial

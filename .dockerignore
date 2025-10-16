@@ -64,8 +64,9 @@ db.sqlite3-journal
 # node modules (if any)
 node_modules/
 
-# backup files or local backups directory
-condominio/backups/backup_*
+# backup files or local backups directory (only exclude generated archives)
+# NOTE: we must NOT exclude source files like condominio/backups/backup_full.py
+condominio/backups/*.zip
 condominio/backups/backup_temp_*
 condominio/backups/full_backup_*.zip
 
