@@ -1,3 +1,5 @@
+# Archivo de pruebas frontend reglas de reprogramación
+flujo_reglas_reprogramacion_frontend.txt
 # No subir configuración global ni cspell
 cspell.json
 condominio/configuracionglobalreprogramacion.py
