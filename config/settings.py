@@ -41,6 +41,7 @@ ALLOWED_HOSTS = [
     '192.168.0.6',
     # Virtualbox / host-only adapter (if present)
     '192.168.56.1',
+    'https://turismosi2.netlify.app/'
 ]
 
 
