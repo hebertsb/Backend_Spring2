@@ -22,7 +22,7 @@ SQLITE_FILE = PROJECT_ROOT / "db.sqlite3"
 MANAGE_PY = PROJECT_ROOT / "manage.py"
 
 # =====================================================
-# 🧩 Función principal de backup
+# 🧩 Función principal de backup completo
 # =====================================================
 
 def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="sqlite"):
@@ -35,7 +35,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     print(f"📦 Creando backup temporal en: {temp_backup_dir}")
 
     # =====================================================
-    # 🗄️ Backup de base de datos (SQLite o Postgres)
+    # 🗄️ Backup de base de datos (SQLite o PostgreSQL)
     # =====================================================
     if include_db:
         DATABASE_URL = os.getenv("DATABASE_URL")
@@ -49,9 +49,8 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
                 print("⚠️ No se encontró archivo de base de datos SQLite.")
         else:
             # ------------------- PostgreSQL -------------------
-            print("💾 Realizando backup de PostgreSQL...")
+            print("💾 Realizando backup de PostgreSQL completo...")
 
-            from urllib.parse import urlparse
             parsed = urlparse(DATABASE_URL)
             pg_user = parsed.username
             pg_password = parsed.password
@@ -67,18 +66,18 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
                 "-U", pg_user,
                 "-h", pg_host,
                 "-p", str(pg_port),
-                "-F", "c",
-                "-f", str(pg_dump_file),
-                pg_db
+                "-d", pg_db,
+                "-F", "p",  # formato plano SQL (restaurable con psql)
+                "-f", str(pg_dump_file)
             ])
 
             if result.returncode == 0:
-                print(f"✅ Dump de Postgres generado: {pg_dump_file.name}")
+                print(f"✅ Dump de PostgreSQL generado: {pg_dump_file.name}")
             else:
-                print("❌ Error al realizar backup de Postgres.")
+                print("❌ Error al realizar backup de PostgreSQL. Verificá las credenciales o pg_dump.")
 
     # =====================================================
-    # ⚙️ Backup del backend
+    # ⚙️ Backup del backend (código fuente)
     # =====================================================
     if include_backend:
         include_dirs = ["condominio", "core", "authz", "config", "scripts"]
@@ -87,7 +86,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
         backend_backup_dir = temp_backup_dir / "backend_code"
         os.makedirs(backend_backup_dir, exist_ok=True)
 
-        print("📝 Copiando código backend completo...")
+        print("🧠 Copiando código backend completo...")
         for include_dir in include_dirs:
             src = PROJECT_ROOT / include_dir
             if not src.exists():
@@ -99,7 +98,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     # =====================================================
     # 🧾 Backup de datos JSON (fixtures)
     # =====================================================
-    if include_db and (db_type.lower() == "sqlite" or not os.getenv("DATABASE_URL")):
+    if include_db:
         if MANAGE_PY.exists():
             json_backup_file = temp_backup_dir / f"dump_{timestamp}.json"
             subprocess.run([
@@ -114,7 +113,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
             print("⚠️ No se encontró manage.py, no se pudo generar fixture JSON.")
 
     # =====================================================
-    # 🗜️ Comprimir backup completo
+    # 🗜️ Comprimir todo el backup
     # =====================================================
     zip_file = BACKUP_ROOT / f"full_backup_{timestamp}.zip"
     print(f"📁 Comprimiendo backup final en: {zip_file}")
@@ -126,18 +125,18 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     print(f"✅ Backup completo comprimido en: {zip_file}")
 
     # =====================================================
-    # ☁️ Subida a Dropbox + enlace de descarga
+    # ☁️ Subida a Dropbox + enlace directo
     # =====================================================
     try:
         dest_path = upload_to_dropbox(zip_file)
-        print("📤 Backup subido correctamente a Dropbox.")
+        print(f"📤 Backup subido correctamente a Dropbox: {dest_path}")
 
-        # Obtener link de descarga directa
+        # Generar enlace directo
         link = get_dropbox_share_link(os.path.basename(zip_file))
         if link:
             print(f"🔗 Enlace de descarga directa: {link}")
         else:
-            print("⚠️ No se pudo generar el enlace de Dropbox.")
+            print("⚠️ No se pudo generar el enlace compartido de Dropbox.")
     except Exception as e:
         print(f"⚠️ Error al subir o generar enlace en Dropbox: {e}")
 
@@ -155,16 +154,14 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
 # 🔧 Ejecución desde CLI
 # =====================================================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Backup Django completo")
+    parser = argparse.ArgumentParser(description="Backup Django completo (PostgreSQL + código + fixtures)")
     parser.add_argument("--no-backend", action="store_true", help="No incluir código backend")
     parser.add_argument("--no-db", action="store_true", help="No incluir base de datos")
-    parser.add_argument("--no-frontend", action="store_true", help="No incluir frontend (solo si existe)")
-    parser.add_argument("--db-type", choices=["sqlite", "postgres"], default="sqlite", help="Tipo de base de datos")
+    parser.add_argument("--db-type", choices=["sqlite", "postgres"], default="postgres", help="Tipo de base de datos")
     args = parser.parse_args()
 
     run_backup(
         include_backend=not args.no_backend,
         include_db=not args.no_db,
-        include_frontend=not args.no_frontend,
         db_type=args.db_type
     )
