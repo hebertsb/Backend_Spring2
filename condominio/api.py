@@ -574,7 +574,8 @@ class ReservaViewSet(AuditedModelViewSet):
         if user.is_authenticated:
             perfil = get_user_perfil(user)
             logger.info(f"[ReservaViewSet.get_queryset] user={user} perfil={perfil} rol={(getattr(perfil, 'rol', None))} rol_nombre={(getattr(getattr(perfil, 'rol', None), 'nombre', None))}")
-            if perfil and hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in ['admin', 'soporte']:
+            admin_roles = ['admin', 'soporte', 'administrador']
+            if perfil and hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in admin_roles:
                 logger.info(f"[ReservaViewSet.get_queryset] ADMIN/SOPORTE: queryset count={queryset.count()}")
                 return queryset
             elif perfil:
