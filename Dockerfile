@@ -1,31 +1,24 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Evitar prompts y actualizar base
+# Evitar prompts y usar apt seguro
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias del sistema (incluye cliente postgres)
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       build-essential \
-       libpq-dev \
-       postgresql-client \
-       gcc \
-       git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Directorio de la aplicación
 WORKDIR /app
 
-# Copiar requirements y instalarlas
+# Instalar cliente postgres (pg_dump/psql) y dependencias mínimas
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar requirements primero para aprovechar cache de Docker
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Copiar el código
+# Copiar el resto del código
 COPY . /app
 
-# Exponer puerto (Railway usa 8080 por defecto para Gunicorn)
-ENV PORT=8080
+# Exponer puerto (informativo)
 EXPOSE 8080
 
-# Comando por defecto para arrancar gunicorn (puedes redefinir en Railway)
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8080", "--workers", "1"]
+# Ejecutar Gunicorn respetando la variable PORT si está presente
+CMD ["sh", "-c", "gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8080}"]

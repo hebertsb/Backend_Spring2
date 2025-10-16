@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+from urllib.parse import urlparse
 
 load_dotenv()
 
@@ -119,12 +120,40 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # }
 
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default="postgresql://postgres:MgkKJZpxQFrBcOFybMsTusmzojTWPqnt@shuttle.proxy.rlwy.net:24694/railway",
-        conn_max_age=600,
-        ssl_require=False,  # usa True si Railway requiere SSL
+def _mask_db_url(url: str) -> str:
+    try:
+        p = urlparse(url)
+        pw_flag = "HAS_PASSWORD" if p.password else "NO_PASSWORD"
+        return f"{p.scheme}://{p.username}:{pw_flag}@{p.hostname}:{p.port}{p.path}"
+    except Exception:
+        return "<invalid_db_url>"
+
+
+# Intentar usar la URL del entorno
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or ""
+
+# Si viene vacía o contiene placeholders (${...}), reconstruir usando POSTGRES_* o RAILWAY_* vars
+if not DATABASE_URL or "${" in DATABASE_URL:
+    pg_user = os.getenv("PGUSER") or os.getenv("POSTGRES_USER") or "postgres"
+    pg_password = os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD") or ""
+    pg_host = (
+        os.getenv("RAILWAY_PRIVATE_DOMAIN")
+        or os.getenv("RAILWAY_TCP_PROXY_DOMAIN")
+        or os.getenv("PGHOST")
+        or "localhost"
     )
+    pg_port = os.getenv("PGPORT") or os.getenv("RAILWAY_TCP_PROXY_PORT") or "5432"
+    pg_db = os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB") or "railway"
+
+    DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
+    # Mostrar versión mascarada (no expone la contraseña)
+    print(f"⚙️ DATABASE_URL reconstruida automáticamente: {_mask_db_url(DATABASE_URL)}")
+
+
+# Configurar Django DB usando dj-database-url
+# En producción suele requerirse SSL; ajusta ssl_require según tu proveedor
+DATABASES = {
+    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
 }
 
 # Password validation
