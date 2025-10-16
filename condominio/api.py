@@ -545,7 +545,7 @@ class ReservaViewSet(AuditedModelViewSet):
         .all()
     )
     serializer_class = ReservaSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['cliente__nombre', 'estado', 'moneda']
     filterset_fields = ['estado', 'moneda', 'cliente']
@@ -568,16 +568,24 @@ class ReservaViewSet(AuditedModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+        import logging
+        logger = logging.getLogger("django")
         # Solo admins y soporte pueden ver todas las reservas
         if user.is_authenticated:
             perfil = get_user_perfil(user)
+            logger.info(f"[ReservaViewSet.get_queryset] user={user} perfil={perfil} rol={(getattr(perfil, 'rol', None))} rol_nombre={(getattr(getattr(perfil, 'rol', None), 'nombre', None))}")
             if perfil and hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in ['admin', 'soporte']:
+                logger.info(f"[ReservaViewSet.get_queryset] ADMIN/SOPORTE: queryset count={queryset.count()}")
                 return queryset
             elif perfil:
-                return queryset.filter(cliente=perfil)
+                filtered = queryset.filter(cliente=perfil)
+                logger.info(f"[ReservaViewSet.get_queryset] CLIENTE: queryset count={filtered.count()}")
+                return filtered
             else:
+                logger.info(f"[ReservaViewSet.get_queryset] SIN PERFIL: queryset vacío")
                 return queryset.none()
         # Si no está autenticado, no ve nada
+        logger.info(f"[ReservaViewSet.get_queryset] NO AUTENTICADO: queryset vacío")
         return queryset.none()
 
     # ===============================
