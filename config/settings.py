@@ -134,16 +134,23 @@ DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or
 
 # Si viene vacía o contiene placeholders (${...}), reconstruir usando POSTGRES_* o RAILWAY_* vars
 if not DATABASE_URL or "${" in DATABASE_URL:
-    pg_user = os.getenv("PGUSER") or os.getenv("POSTGRES_USER") or "postgres"
-    pg_password = os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD") or ""
-    pg_host = (
-        os.getenv("RAILWAY_PRIVATE_DOMAIN")
-        or os.getenv("RAILWAY_TCP_PROXY_DOMAIN")
-        or os.getenv("PGHOST")
-        or "localhost"
-    )
-    pg_port = os.getenv("PGPORT") or os.getenv("RAILWAY_TCP_PROXY_PORT") or "5432"
-    pg_db = os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB") or "railway"
+    def _env_clean(*names):
+        """Return first env var value that doesn't look like a template placeholder."""
+        for n in names:
+            v = os.getenv(n)
+            if not v:
+                continue
+            # ignore values that contain unexpanded placeholders or stray braces
+            if "${" in v or "}}" in v or "{" in v or "}" in v:
+                continue
+            return v
+        return None
+
+    pg_user = _env_clean("PGUSER", "POSTGRES_USER") or "postgres"
+    pg_password = _env_clean("PGPASSWORD", "POSTGRES_PASSWORD") or ""
+    pg_host = _env_clean("RAILWAY_PRIVATE_DOMAIN", "RAILWAY_TCP_PROXY_DOMAIN", "PGHOST") or "localhost"
+    pg_port = _env_clean("PGPORT", "RAILWAY_TCP_PROXY_PORT") or "5432"
+    pg_db = _env_clean("PGDATABASE", "POSTGRES_DB") or "railway"
 
     DATABASE_URL = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
     # Mostrar versión mascarada (no expone la contraseña)
@@ -152,9 +159,20 @@ if not DATABASE_URL or "${" in DATABASE_URL:
 
 # Configurar Django DB usando dj-database-url
 # En producción suele requerirse SSL; ajusta ssl_require según tu proveedor
-DATABASES = {
-    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
-}
+# Si estamos en DEBUG y la DATABASE_URL viene vacía o con placeholders, usar SQLite local
+orig_env = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_DATABASE_URL") or ""
+if DEBUG and (not DATABASE_URL or "${" in orig_env or "{" in orig_env):
+    # Fallback a SQLite para desarrollo local cuando no hay una URL válida
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+else:
+    DATABASES = {
+        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
