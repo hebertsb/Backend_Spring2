@@ -546,18 +546,9 @@ class ReservaViewSet(AuditedModelViewSet):
     search_fields = ['cliente__nombre', 'estado', 'moneda']
     filterset_fields = ['estado', 'moneda', 'cliente']
 
-    # ===============================
-    # PROVISIONAL: Override create to forzar estado='PAGADA' (eliminar 'PENDIENTE')
-    # ===============================
-    def create(self, request, *args, **kwargs):
-        # Copiar los datos y forzar estado='PAGADA'
-        data = request.data.copy()
-        data['estado'] = 'PAGADA'  # PROVISIONAL: Forzar estado pagada
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    # Nota: Se usa el comportamiento por defecto de creación de DRF.
+    # La creación no fuerza estado a 'PAGADA' — el frontend puede enviar el campo
+    # 'estado' o dejarlo para que use el valor por defecto definido en el modelo (PENDIENTE).
 
 
     def get_queryset(self):
