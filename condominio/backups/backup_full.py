@@ -72,20 +72,52 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
                 pg_dump_file = temp_backup_dir / f"postgres_dump_{timestamp}.sql"
                 os.environ["PGPASSWORD"] = pg_password or ""
 
-                result = subprocess.run([
-                    "pg_dump",
-                    "-U", pg_user,
-                    "-h", pg_host,
-                    "-p", str(pg_port),
-                    "-d", pg_db,
-                    "-F", "p",  # formato plano SQL (restaurable con psql)
-                    "-f", str(pg_dump_file)
-                ])
+                # Comprobar si pg_dump existe en el PATH
+                try:
+                    from shutil import which
+                    if not which("pg_dump"):
+                        msg = "❌ pg_dump no está disponible en el PATH. Asegúrate de que la herramienta 'pg_dump' esté instalada en el entorno de ejecución."
+                        print(msg)
+                        # crear un archivo marker para facilitar diagnóstico remoto
+                        marker = temp_backup_dir / "pg_dump_not_found.txt"
+                        marker.write_text(msg)
+                    else:
+                        # Ejecutar pg_dump y capturar stdout/stderr para diagnóstico
+                        result = subprocess.run([
+                            "pg_dump",
+                            "-U", pg_user,
+                            "-h", pg_host,
+                            "-p", str(pg_port),
+                            "-d", pg_db,
+                            "-F", "p",  # formato plano SQL (restaurable con psql)
+                            "-f", str(pg_dump_file)
+                        ], capture_output=True, text=True)
 
-                if result.returncode == 0 and pg_dump_file.exists():
-                    print(f"✅ Dump de PostgreSQL generado: {pg_dump_file.name}")
-                else:
-                    print("❌ Error: No se generó dump de PostgreSQL. Revisar credenciales o instalación de pg_dump.")
+                        print(f"pg_dump returncode={result.returncode}")
+                        if result.stdout:
+                            print("pg_dump stdout:")
+                            print(result.stdout)
+                        if result.stderr:
+                            print("pg_dump stderr:")
+                            print(result.stderr)
+
+                        if result.returncode == 0 and pg_dump_file.exists():
+                            print(f"✅ Dump de PostgreSQL generado: {pg_dump_file.name}")
+                        else:
+                            msg = (
+                                "❌ Error: No se generó dump de PostgreSQL. "
+                                "Revisar credenciales, disponibilidad de pg_dump o permisos. "
+                                f"Comando pg_dump intentó escribir en: {pg_dump_file}\n"
+                            )
+                            print(msg)
+                            # escribir detalle de error para inspección remota
+                            marker = temp_backup_dir / "pg_dump_failed.txt"
+                            details = f"returncode={getattr(result, 'returncode', 'N/A')}\n"
+                            details += f"stderr:\n{getattr(result, 'stderr', '')}\n"
+                            details += f"stdout:\n{getattr(result, 'stdout', '')}\n"
+                            marker.write_text(details)
+                except Exception as e:
+                    print(f"❌ Error ejecutando pg_dump: {e}")
             except Exception as e:
                 print(f"❌ Error ejecutando pg_dump: {e}")
         else:
