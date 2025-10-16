@@ -568,17 +568,17 @@ class ReservaViewSet(AuditedModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-
+        # Solo admins y soporte pueden ver todas las reservas
         if user.is_authenticated:
             perfil = get_user_perfil(user)
-            if perfil:
-                if hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in ['admin', 'soporte']:
-                    return queryset
-                else:
-                    return queryset.filter(cliente=perfil)
+            if perfil and hasattr(perfil, 'rol') and perfil.rol and perfil.rol.nombre.lower() in ['admin', 'soporte']:
+                return queryset
+            elif perfil:
+                return queryset.filter(cliente=perfil)
             else:
                 return queryset.none()
-        return queryset
+        # Si no está autenticado, no ve nada
+        return queryset.none()
 
     # ===============================
     # MIS RESERVAS (SOLO CLIENTE)
