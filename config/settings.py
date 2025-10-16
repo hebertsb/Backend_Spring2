@@ -81,6 +81,8 @@ CORS_ALLOWED_ORIGINS = [
     # Allow local device dev servers (React Native / local web debug)
     'http://192.168.0.6:3000',
     'http://192.168.56.1:3000',
+    # Frontend desplegado en Netlify
+    'https://turismosi2.netlify.app',
 ]
 
 # For development you can also allow all origins (use carefully):
