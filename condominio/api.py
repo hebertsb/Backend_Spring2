@@ -707,7 +707,45 @@ class ReservaViewSet(AuditedModelViewSet):
         instance = serializer.save()
         try:
             # create a basic description with id and cliente
+            # Add extra context if request included paquete_id or servicio_id
+            req = getattr(self, 'request', None)
+            paquete_info = None
+            servicio_info = None
+            if req is not None:
+                try:
+                    data = getattr(req, 'data', {}) or {}
+                    paquete_id = data.get('paquete_id') or data.get('paquete')
+                    servicio_id = data.get('servicio_id') or data.get('servicio')
+
+                    if paquete_id:
+                        try:
+                            paquete_obj = Paquete.objects.filter(pk=paquete_id).first()
+                            if paquete_obj:
+                                paquete_info = f"paquete_id={paquete_obj.pk} nombre={paquete_obj.nombre}"
+                            else:
+                                paquete_info = f"paquete_id={paquete_id}"
+                        except Exception:
+                            paquete_info = f"paquete_id={paquete_id}"
+
+                    if servicio_id:
+                        try:
+                            servicio_obj = Servicio.objects.filter(pk=servicio_id).first()
+                            if servicio_obj:
+                                servicio_info = f"servicio_id={servicio_obj.pk} titulo={servicio_obj.titulo}"
+                            else:
+                                servicio_info = f"servicio_id={servicio_id}"
+                        except Exception:
+                            servicio_info = f"servicio_id={servicio_id}"
+                except Exception:
+                    # Don't fail logging if request data parsing fails
+                    pass
+
             descripcion = f"Reserva creada id={instance.id} cliente={getattr(instance.cliente, 'nombre', None)}"
+            if paquete_info:
+                descripcion += f" {paquete_info}"
+            if servicio_info:
+                descripcion += f" {servicio_info}"
+
             log_bitacora(self.request, 'Crear Reserva', descripcion)
         except Exception:
             pass
@@ -746,6 +784,16 @@ class ReservaVisitanteViewSet(viewsets.ModelViewSet):
     queryset = ReservaVisitante.objects.select_related('reserva', 'visitante').all()
     serializer_class = ReservaVisitanteSerializer
     permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            reserva = getattr(instance, 'reserva', None)
+            visitante = getattr(instance, 'visitante', None)
+            descripcion = f"Asociar Visitante id={getattr(visitante,'id',None)} nombre={getattr(visitante,'nombre',None)} {getattr(visitante,'apellido',None)} a Reserva id={getattr(reserva,'id',None)}"
+            log_bitacora(self.request, 'Asociar Visitante a Reserva', descripcion)
+        except Exception:
+            pass
 
 
 # =====================================================
