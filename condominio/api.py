@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, filters
+from rest_framework import viewsets, permissions, filters, serializers
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
@@ -77,12 +77,12 @@ class AuditedModelViewSet(viewsets.ModelViewSet):
             pass
         instance.delete()
 from .models import (
-    Categoria, Servicio, Usuario, Campania, Paquete, PaqueteServicio, Cupon, Reserva, Visitante,
+    Categoria, Proveedor, Servicio, Suscripcion, Usuario, Campania, Paquete, PaqueteServicio, Cupon, Reserva, Visitante,
     ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, 
     HistorialReprogramacion, ConfiguracionGlobalReprogramacion, Reprogramacion
 )
 from .serializer import (
-    CategoriaSerializer, ServicioSerializer, UsuarioSerializer, CampaniaSerializer,
+    CategoriaSerializer, ProveedorSerializer, ServicioSerializer, SuscripcionSerializer, UsuarioSerializer, CampaniaSerializer,
     CuponSerializer, ReservaSerializer, VisitanteSerializer, ReservaVisitanteSerializer,
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
     HistorialReprogramacionSerializer, ConfiguracionGlobalReprogramacionSerializer,
@@ -901,3 +901,22 @@ class BitacoraViewSet(viewsets.ModelViewSet):
     queryset = __import__('condominio.models', fromlist=['Bitacora']).Bitacora.objects.all()
     serializer_class = BitacoraSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class ProveedorViewSet(viewsets.ModelViewSet):
+    queryset = Proveedor.objects.select_related('usuario').all()
+    serializer_class = ProveedorSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def perform_create(self, serializer):
+        # Asegurarse de que el usuario exista
+        user = serializer.validated_data.get('usuario')
+        if not user:
+            raise serializers.ValidationError({'usuario': 'Este campo es requerido.'})
+        serializer.save()
+
+
+class SuscripcionViewSet(viewsets.ModelViewSet):
+    queryset = Suscripcion.objects.all()
+    serializer_class = SuscripcionSerializer
+    permission_classes = [permissions.AllowAny]
