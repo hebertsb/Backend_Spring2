@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('condominio', '0003_comprobantepago'),
+        ('condominio', '0005_alter_proveedor_usuario'),
     ]
 
     operations = [

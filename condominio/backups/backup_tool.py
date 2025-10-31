@@ -6,7 +6,12 @@ from .backup_full import run_backup, cleanup_old_automatic_backups
 
 
 os.environ['TZ'] = 'America/La_Paz'
-time.tzset()
+try:
+    # time.tzset() no está disponible en Windows; envolver en try/except
+    time.tzset()
+except AttributeError:
+    # En sistemas Windows time.tzset no existe — usar zona horaria en operaciones datetime
+    print("⚠️ time.tzset no disponible en este sistema; se ignorará (Windows)")
 # =====================================================
 # ⏰ Programador de Backups Automáticos
 # =====================================================
