@@ -1,8 +1,11 @@
 from rest_framework import serializers
 from authz.serializer import RolSerializer
+from django.contrib.auth.models import User
 from .models import (
     Categoria,
+    Proveedor,
     Servicio,
+    Suscripcion,
     Usuario,
     Campania,
     Paquete,
@@ -791,3 +794,29 @@ class ComprobantePagoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ComprobantePago
         fields = '__all__'
+
+
+
+class ProveedorSerializer(serializers.ModelSerializer):
+    # Campo para escritura (solo el id del usuario)
+    usuario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Usuario.objects.all(), source="usuario", write_only=True
+    )
+    # Campo para lectura (expandido con datos del usuario)
+    usuario = UsuarioSerializer(read_only=True)
+
+    class Meta:
+        model = Proveedor
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+class SuscripcionSerializer(serializers.ModelSerializer):
+    proveedor = ProveedorSerializer(read_only=True)
+    proveedor_id = serializers.PrimaryKeyRelatedField(
+        queryset=Proveedor.objects.all(), source="proveedor", write_only=True
+    )
+
+    class Meta:
+        model = Suscripcion
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "updated_at"]

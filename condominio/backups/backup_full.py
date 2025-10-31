@@ -25,17 +25,28 @@ MANAGE_PY = PROJECT_ROOT / "manage.py"
 # 🧩 Función principal de backup completo
 # =====================================================
 
-def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="postgres"):
+def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="postgres", automatic=False):
     from urllib.parse import urlparse
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    temp_backup_dir = BACKUP_ROOT / f"backup_temp_{timestamp}"
+    
+    # Diferenciar entre backup manual y automático
+    if automatic:
+        backup_type = "automático"
+        temp_backup_dir = BACKUP_ROOT / f"auto_backup_temp_{timestamp}"
+        week_number = datetime.now().strftime("%Y-%U")  # Año-Semana
+        zip_filename = f"auto_backup_{week_number}_{timestamp}.zip"
+    else:
+        backup_type = "manual"
+        temp_backup_dir = BACKUP_ROOT / f"backup_temp_{timestamp}"
+        zip_filename = f"manual_backup_{timestamp}.zip"
+    
     os.makedirs(temp_backup_dir, exist_ok=True)
 
-    print(f"📦 Creando backup temporal en: {temp_backup_dir}")
+    print(f"📦 Creando backup {backup_type} en: {temp_backup_dir}")
 
     # =====================================================
-    # 🗄️ Backup de base de datos (PostgreSQL o SQLite)
+    # 🗄️ Backup de base de datos (PostgreSQL o SQLite) - TU CÓDIGO ORIGINAL
     # =====================================================
     if include_db:
         # Intentar obtener la URL de conexión de distintas fuentes
@@ -82,7 +93,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
                 pg_dump_file = temp_backup_dir / f"postgres_dump_{timestamp}.sql"
                 os.environ["PGPASSWORD"] = pg_password or ""
 
-                # Comprobar si pg_dump existe en el PATH
+                # Comprobar si pg_dump existe en el PATH - ESTO FUNCIONA EN RAILWAY
                 try:
                     from shutil import which
                     if not which("pg_dump"):
@@ -139,7 +150,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
                 print("⚠️ No se encontró archivo de base de datos SQLite.")
 
     # =====================================================
-    # ⚙️ Backup del backend (código fuente)
+    # ⚙️ Backup del backend (código fuente) - TU CÓDIGO ORIGINAL
     # =====================================================
     if include_backend:
         include_dirs = ["condominio", "core", "authz", "config", "scripts"]
@@ -158,11 +169,16 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
         print("✅ Código backend copiado correctamente.")
 
     # =====================================================
-    # 🧾 Backup de datos JSON (fixtures)
+    # 🧾 Backup de datos JSON (fixtures) - TU CÓDIGO ORIGINAL
     # =====================================================
     if include_db:
         if MANAGE_PY.exists():
-            json_backup_file = temp_backup_dir / f"dump_{timestamp}.json"
+            # Diferenciar nombre para automáticos
+            if automatic:
+                json_backup_file = temp_backup_dir / f"auto_dump_{timestamp}.json"
+            else:
+                json_backup_file = temp_backup_dir / f"dump_{timestamp}.json"
+                
             subprocess.run([
                 sys.executable, str(MANAGE_PY), "dumpdata",
                 "--exclude", "auth.permission",
@@ -177,17 +193,17 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     # =====================================================
     # 🗜️ Comprimir todo el backup
     # =====================================================
-    zip_file = BACKUP_ROOT / f"full_backup_{timestamp}.zip"
-    print(f"📁 Comprimiendo backup final en: {zip_file}")
+    zip_file = BACKUP_ROOT / zip_filename
+    print(f"📁 Comprimiendo backup {backup_type} en: {zip_file}")
     with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(temp_backup_dir):
             for file in files:
                 file_path = Path(root) / file
                 zipf.write(file_path, file_path.relative_to(temp_backup_dir))
-    print(f"✅ Backup completo comprimido en: {zip_file}")
+    print(f"✅ Backup {backup_type} comprimido en: {zip_file}")
 
     # =====================================================
-    # ☁️ Subida a Dropbox + enlace directo
+    # ☁️ Subida a Dropbox + enlace directo - TU CÓDIGO ORIGINAL
     # =====================================================
     try:
         dest_path = upload_to_dropbox(zip_file)
@@ -210,6 +226,32 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     except Exception as e:
         print(f"⚠️ No se pudo eliminar carpeta temporal: {e}")
 
+    # =====================================================
+    # 🧹 Limpieza de backups automáticos antiguos (NUEVO)
+    # =====================================================
+    if automatic:
+        cleanup_old_automatic_backups()
+
+
+# =====================================================
+# 🔄 SISTEMA DE BACKUPS AUTOMÁTICOS (NUEVO)
+# =====================================================
+
+def cleanup_old_automatic_backups():
+    """Mantiene solo los backups automáticos de las últimas 4 semanas"""
+    try:
+        backup_files = list(BACKUP_ROOT.glob("auto_backup_*.zip"))
+        backup_files.sort(key=os.path.getmtime)
+        
+        # Mantener máximo 4 backups automáticos
+        if len(backup_files) > 4:
+            files_to_delete = backup_files[:-4]  # Eliminar los más antiguos
+            for file in files_to_delete:
+                file.unlink()
+                print(f"🗑️ Backup automático antiguo eliminado: {file.name}")
+    except Exception as e:
+        print(f"⚠️ Error limpiando backups antiguos: {e}")
+
 
 # =====================================================
 # 🔧 Ejecución desde CLI
@@ -219,10 +261,12 @@ if __name__ == "__main__":
     parser.add_argument("--no-backend", action="store_true", help="No incluir código backend")
     parser.add_argument("--no-db", action="store_true", help="No incluir base de datos")
     parser.add_argument("--db-type", choices=["sqlite", "postgres"], default="postgres", help="Tipo de base de datos")
+    parser.add_argument("--auto", action="store_true", help="Ejecutar como backup automático")
     args = parser.parse_args()
 
     run_backup(
         include_backend=not args.no_backend,
         include_db=not args.no_db,
-        db_type=args.db_type
+        db_type=args.db_type,
+        automatic=args.auto
     )

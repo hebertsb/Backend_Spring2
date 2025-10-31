@@ -3,12 +3,12 @@ from rest_framework import routers
 
 from authz.api import RolViewSet
 from .api import (
-    CategoriaViewSet, ServicioViewSet, UsuarioViewSet, CampaniaViewSet, PaqueteViewSet,
+    CategoriaViewSet, ServicioViewSet, SuscripcionViewSet, UsuarioViewSet, CampaniaViewSet, PaqueteViewSet,
     CuponViewSet, ReservaViewSet, VisitanteViewSet, ReservaVisitanteViewSet,
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet,
-    PerfilUsuarioViewSet, SoportePanelViewSet
+    PerfilUsuarioViewSet, SoportePanelViewSet,ProveedorViewSet
 )
 from .api import BitacoraViewSet
 from .api_fcm import FCMDeviceViewSet
@@ -37,6 +37,8 @@ router.register(r'configuracion-global-reprogramacion', ConfiguracionGlobalRepro
 router.register(r'bitacora', BitacoraViewSet)
 router.register(r'perfil', PerfilUsuarioViewSet, basename='perfil')
 router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
+router.register(r'proveedor', ProveedorViewSet, basename='proveedor')
+router.register(r'suscripciones', SuscripcionViewSet, basename='suscripcion')
 
 urlpatterns = router.urls + [
      path('backups/', include('condominio.backups.urls')),

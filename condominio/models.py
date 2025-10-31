@@ -700,3 +700,134 @@ class ComprobantePago(TimeStampedModel):
 
     def __str__(self):
         return f"Comprobante #{self.pk or 'Nuevo'} - {self.reserva} - {self.estado}"
+
+
+
+# ============================
+# PROVEEDORES TURÍSTICOS
+# ============================
+class Proveedor(TimeStampedModel):
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="proveedor")
+    nombre_empresa = models.CharField(max_length=200)
+    descripcion = models.TextField(blank=True)
+    telefono = models.CharField(max_length=20, blank=True)
+    sitio_web = models.URLField(blank=True)
+
+    def __str__(self):
+        return self.nombre_empresa
+
+
+# ============================
+# SUSCRIPCIONES DE PROVEEDORES
+# ============================
+class Suscripcion(TimeStampedModel):
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, related_name="suscripciones")
+    precio = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    activa = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.proveedor} → {self.plan}"
+
+    def esta_vigente(self):
+        from django.utils import timezone
+        hoy = timezone.now().date()
+        return self.activa and self.fecha_inicio <= hoy <= self.fecha_fin
+
+# ======================================
+# SERIALIZERS
+# ======================================
+from rest_framework import serializers
+
+class UsuarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Usuario
+        fields = '__all__'
+
+
+class CategoriaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Categoria
+        fields = '__all__'
+
+
+class CampaniaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Campania
+        fields = '__all__'
+
+
+class CuponSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cupon
+        fields = '__all__'
+
+
+class ServicioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Servicio
+        fields = '__all__'
+
+
+class PaqueteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Paquete
+        fields = '__all__'
+
+
+class ReservaSerializer(serializers.ModelSerializer):
+    usuario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Usuario.objects.all(), source="usuario", write_only=True)
+    
+    class Meta:
+        model = Reserva
+        fields = '__all__'
+
+
+class ReprogramacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reprogramacion
+        fields = '__all__'
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = '__all__'
+
+
+class TicketMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TicketMessage
+        fields = '__all__'
+
+
+class NotificacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notificacion
+        fields = '__all__'
+
+
+class BitacoraSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Bitacora
+        fields = '__all__'
+
+
+class ComprobantePagoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ComprobantePago
+        fields = '__all__'
+
+
+class ProveedorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Proveedor
+        fields = '__all__'
+
+
+class SuscripcionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Suscripcion
+        fields = '__all__'
