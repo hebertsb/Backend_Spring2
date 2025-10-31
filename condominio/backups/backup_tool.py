@@ -32,7 +32,7 @@ def start_automatic_backups():
     """Inicia el programador de backups automáticos en un hilo separado"""
     
     # Programar backup todos los domingos a las 02:00 AM
-    schedule.every().sunday.at("02:00").do(run_automatic_backup)
+    schedule.every().friday.at("23:00").do(run_automatic_backup)
     
     # Para testing: ejecutar cada 2 minutos (opcional, comentar en producción)
     # schedule.every(2).minutes.do(run_automatic_backup)
