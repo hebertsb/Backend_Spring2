@@ -1,8 +1,12 @@
+import os
 import schedule
 import time
 import threading
 from .backup_full import run_backup, cleanup_old_automatic_backups
 
+
+os.environ['TZ'] = 'America/La_Paz'
+time.tzset()
 # =====================================================
 # ⏰ Programador de Backups Automáticos
 # =====================================================
@@ -32,7 +36,7 @@ def start_automatic_backups():
     """Inicia el programador de backups automáticos en un hilo separado"""
     
     # Programar backup todos los domingos a las 02:00 AM
-    schedule.every().thursday.at("03:05").do(run_automatic_backup)
+    schedule.every().thursday.at("23:25").do(run_automatic_backup)
     
     # Para testing: ejecutar cada 2 minutos (opcional, comentar en producción)
     # schedule.every(2).minutes.do(run_automatic_backup)
