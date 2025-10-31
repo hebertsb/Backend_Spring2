@@ -61,6 +61,21 @@ staticfiles/
 config.json
 credentials.json
 secrets.json
+# Firebase service account (no subir nunca)
+# Recomendado: almacenar el JSON fuera del repo, por ejemplo en `.secrets/firebase-service-account.json`
+.secrets/
+firebase-service-account.json
+service-account.json
+google-service-account.json
+*_service_account.json
+# Carpeta sugerida para credenciales (no subir)
+.secrets/
+
+# Ignorar carpeta donde guardas tu JSON de Firebase (ejemplo)
+CredencialFirebase/
+
+# Ignorar cualquier JSON que contenga firebase-adminsdk en el nombre
+*firebase-adminsdk*.json
 
 # ======================================
 # �️ ENTORNO DE DESARROLLO
