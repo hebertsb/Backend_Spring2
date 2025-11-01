@@ -18,12 +18,14 @@ class CondominioConfig(AppConfig):
         if not hasattr(self, '_backup_scheduler_started'):
             self._backup_scheduler_started = True
             
-            # SOLO EN PRODUCCIÓN o cuando se especifique explícitamente
             import os
-            if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('ENABLE_AUTOMATIC_BACKUPS'):  
+            print("🎯 APPS.PY - ENABLE_AUTOMATIC_BACKUPS =", os.environ.get('ENABLE_AUTOMATIC_BACKUPS'))
+            
+            if os.environ.get('ENABLE_AUTOMATIC_BACKUPS') == 'true':
                 try:
                     from condominio.backups.backup_tool import start_automatic_backups
+                    print("🎯 APPS.PY - Iniciando scheduler...")
                     start_automatic_backups()
-                    print("🤖 Programador de backups automáticos iniciado en producción")
+                    print("🎯 APPS.PY - Scheduler iniciado")
                 except Exception as e:
-                    print(f"⚠️ Error al iniciar backups automáticos: {e}")
+                    print(f"🎯 APPS.PY - Error: {e}")
