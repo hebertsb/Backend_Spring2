@@ -637,6 +637,26 @@ class Notificacion(TimeStampedModel):
         return f"Notificación #{self.pk or 'Nueva'} -> {self.usuario.nombre} ({self.tipo})"
 
 
+class FCMDevice(TimeStampedModel):
+    """Dispositivo / cliente registrado para recibir notificaciones FCM.
+
+    Campos en español para mantener consistencia con el proyecto.
+    """
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='dispositivos_fcm')
+    registration_id = models.CharField('token_registro', max_length=512, unique=True)
+    tipo_dispositivo = models.CharField('tipo_dispositivo', max_length=20, blank=True, null=True)  # 'web', 'android', 'ios'
+    nombre = models.CharField('nombre', max_length=200, blank=True, null=True)
+    activo = models.BooleanField('activo', default=True, help_text='Si el token está activo para recibir notificaciones')
+    ultima_vez = models.DateTimeField('ultima_vez', auto_now=True)
+
+    class Meta(TimeStampedModel.Meta):
+        verbose_name = 'Dispositivo FCM'
+        verbose_name_plural = 'Dispositivos FCM'
+
+    def __str__(self):
+        return f"{self.usuario} - {self.tipo_dispositivo or 'desconocido'} - {self.registration_id[:10]}"
+
+
 # ======================================
 # Bitacora / Log de acciones
 # ======================================

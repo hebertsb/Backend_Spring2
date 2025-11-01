@@ -11,6 +11,7 @@ from .api import (
     PerfilUsuarioViewSet, SoportePanelViewSet,ProveedorViewSet
 )
 from .api import BitacoraViewSet
+from .api_fcm import FCMDeviceViewSet
 
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)
@@ -30,6 +31,7 @@ router.register(r'rol', RolViewSet)
 router.register(r'tickets', TicketViewSet)
 router.register(r'ticket-messages', TicketMessageViewSet)
 router.register(r'notificaciones', NotificacionViewSet)
+router.register(r'fcm-dispositivos', FCMDeviceViewSet, basename='fcm-dispositivos')
 router.register(r'historial-reprogramacion', HistorialReprogramacionViewSet)
 router.register(r'configuracion-global-reprogramacion', ConfiguracionGlobalReprogramacionViewSet)
 router.register(r'bitacora', BitacoraViewSet)
