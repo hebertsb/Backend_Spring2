@@ -1,6 +1,18 @@
 import os
 import dropbox
 from dropbox.files import WriteMode
+import time
+import platform
+from datetime import datetime, timezone
+from pytz import timezone as pytz_timezone
+
+# Aplicar zona horaria Bolivia
+os.environ["TZ"] = "America/La_Paz"
+if platform.system() != "Windows":
+    time.tzset()
+
+def get_bolivia_now():
+    return datetime.now(pytz_timezone("America/La_Paz"))
 
 # ==========================================================
 # 🔐 Carga del token de acceso desde el entorno (.env)
@@ -45,40 +57,97 @@ def upload_to_dropbox(file_path):
         raise
 
 
-# ==========================================================
-# 📋 Listar backups almacenados en Dropbox
-# ==========================================================
+
+    
 
 def list_backups_dropbox():
     """
-    Devuelve una lista con los nombres de los archivos ZIP almacenados
-    en la carpeta /backups de Dropbox.
+    Devuelve una lista con los backups almacenados en Dropbox,
+    mostrando la hora convertida correctamente a hora local de Bolivia.
     """
     try:
         dbx = get_dropbox_client()
         result = dbx.files_list_folder("/backups")
 
         backups = []
+        bolivia_tz = pytz_timezone("America/La_Paz")
+        
         for entry in result.entries:
             if isinstance(entry, dropbox.files.FileMetadata):
+                # CORRECCIÓN: Manejo explícito de timezone
+                utc_time = entry.server_modified
+                
+                # Asegurar que sea UTC
+                if utc_time.tzinfo is None:
+                    utc_time = utc_time.replace(tzinfo=timezone.utc)
+                else:
+                    utc_time = utc_time.astimezone(timezone.utc)
+                
+                # Convertir a Bolivia
+                bolivia_time = utc_time.astimezone(bolivia_tz)
+
                 backups.append({
                     "name": entry.name,
                     "path": entry.path_display,
                     "size_kb": round(entry.size / 1024, 2),
-                    "modified": entry.server_modified.strftime("%Y-%m-%d %H:%M:%S")
+                    "modified": bolivia_time.strftime("%Y-%m-%d %H:%M:%S")
                 })
 
         print(f"📂 Se encontraron {len(backups)} backups en Dropbox.")
         return backups
 
-    except dropbox.exceptions.ApiError as e:
-        print(f"⚠️ Error al listar archivos en Dropbox: {e}")
-        raise
-
     except Exception as e:
-        print(f"❌ Error inesperado al listar backups: {e}")
-        raise
+        print(f"❌ Error al listar backups: {e}")
+        return []
 
+
+# ==========================================================
+# 📋 Listar backups almacenados en Dropbox
+# ==========================================================
+# def list_backups_dropbox():
+#     """
+#     Devuelve una lista con los backups almacenados en Dropbox,
+#     mostrando la hora convertida correctamente a hora local de Bolivia.
+#     """
+#     try:
+#         dbx = get_dropbox_client()
+#         result = dbx.files_list_folder("/backups")
+
+#         backups = []
+#         bolivia_tz = pytz_timezone("America/La_Paz")
+        
+#         for entry in result.entries:
+#             if isinstance(entry, dropbox.files.FileMetadata):
+#                 # ⚠️ CORRECCIÓN: Dropbox devuelve UTC, convertir EXPLÍCITAMENTE
+#                 utc_time = entry.server_modified
+                
+#                 # Asegurar que tenga timezone UTC
+#                 if utc_time.tzinfo is None:
+#                     utc_time = utc_time.replace(tzinfo=timezone.utc)
+#                 else:
+#                     # Si ya tiene timezone, convertir a UTC primero
+#                     utc_time = utc_time.astimezone(timezone.utc)
+                
+#                 # Convertir UTC a hora Bolivia
+#                 bolivia_time = utc_time.astimezone(bolivia_tz)
+
+#                 backups.append({
+#                     "name": entry.name,
+#                     "path": entry.path_display,
+#                     "size_kb": round(entry.size / 1024, 2),
+#                     "modified": bolivia_time.strftime("%Y-%m-%d %H:%M:%S")
+#                 })
+
+#         print(f"📂 Se encontraron {len(backups)} backups en Dropbox.")
+#         return backups
+
+#     except dropbox.exceptions.ApiError as e:
+#         print(f"⚠️ Error al listar archivos en Dropbox: {e}")
+#         raise
+
+#     except Exception as e:
+#         print(f"❌ Error inesperado al listar backups: {e}")
+#         raise
 
 # ==========================================================
 # ⬇️ Descargar backups desde Dropbox

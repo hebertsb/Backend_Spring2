@@ -11,20 +11,19 @@ class CondominioConfig(AppConfig):
         # Iniciar el programador de backups automáticos (SOLO UNA VEZ)
         self.start_automatic_backups()
 
-    def start_automatic_backups(self):
+    def start_automatic_backups(self):  # ✅ DENTRO de la clase
         """
         Inicia el programador de backups automáticos una sola vez
         """
-        # Verificar que no se haya iniciado ya (evitar duplicados en desarrollo)
         if not hasattr(self, '_backup_scheduler_started'):
             self._backup_scheduler_started = True
             
-            # Solo iniciar en producción o cuando se especifique
+            # SOLO EN PRODUCCIÓN o cuando se especifique explícitamente
             import os
-            if os.environ.get('RUN_MAIN') == 'true':  # Solo en el proceso principal
+            if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('ENABLE_AUTOMATIC_BACKUPS'):  
                 try:
                     from condominio.backups.backup_tool import start_automatic_backups
                     start_automatic_backups()
-                    print("🤖 Programador de backups automáticos iniciado correctamente")
+                    print("🤖 Programador de backups automáticos iniciado en producción")
                 except Exception as e:
                     print(f"⚠️ Error al iniciar backups automáticos: {e}")
