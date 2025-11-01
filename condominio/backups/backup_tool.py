@@ -72,7 +72,7 @@ def start_automatic_backups():
     schedule.clear('backups')
 
     # 🕒 SOLO backups automáticos programados - sábados 17:30 hora Bolivia
-    schedule.every().saturday.at("17:30").tag('backups').do(run_automatic_backup)
+    schedule.every().saturday.at("17:50").tag('backups').do(run_automatic_backup)
 
     print("🤖 Programador de backups automáticos iniciado")
     print("🕒 Zona horaria activa:", time.tzname, "| Hora actual:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
