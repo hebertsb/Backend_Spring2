@@ -9,7 +9,7 @@ Uso:
 """
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from decimal import Decimal
 import random
 import string
@@ -445,9 +445,9 @@ class Command(BaseCommand):
                 reserva = Reserva.objects.create(
                     fecha=fecha_reserva,
                     fecha_inicio=timezone.make_aware(
-                        timezone.datetime.combine(
+                        datetime.combine(
                             fecha_reserva + timedelta(days=random.randint(1, 30)), 
-                            timezone.datetime.min.time()
+                            datetime.min.time()
                         )
                     ),
                     estado=estado,

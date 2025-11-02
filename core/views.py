@@ -2,7 +2,7 @@ from datetime import timedelta, timezone
 from django.http import HttpResponse
 import stripe
 from django.conf import settings
-from condominio.models import Paquete, Proveedor, Servicio, Suscripcion
+from condominio.models import Paquete, Servicio
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import os
@@ -54,105 +54,24 @@ def crear_checkout_session(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# NUEVO: endpoint específico para crear sesión de suscripción
+# =====================================================
+# SUSCRIPCIONES - ENDPOINT DESHABILITADO
+# =====================================================
+# NOTA: Esta funcionalidad requiere los modelos Proveedor y Suscripcion
+# que fueron eliminados en la migración 0009. Si necesitas restaurar esta
+# funcionalidad, deberás recrear estos modelos primero.
 @api_view(["POST"])
 def crear_checkout_session_suscripcion(request):
-    try:
-        data = request.data
-
-        # Datos enviados desde el frontend
-        nombre = data.get("nombre", "Suscripción")
-        precio = float(data.get("precio", 0))  # ya viene en centavos
-        cantidad = int(data.get("cantidad", 1))
-        usuario_id = data.get("usuario_id")
-        nombre_empresa = data.get("nombre_empresa", "Proveedor sin nombre")
-        descripcion = data.get("descripcion", "")
-        telefono = data.get("telefono", "")
-        sitio_web = data.get("sitio_web", "")
-
-        # Validaciones básicas
-        if not usuario_id:
-            return Response({"error": "Falta usuario_id"}, status=status.HTTP_400_BAD_REQUEST)
-        if precio <= 0:
-            return Response({"error": "Precio inválido"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # ============================
-        # 1️⃣ Crear Proveedor si no existe
-        # ============================
-        from condominio.models import Usuario  # importa tu modelo real
-        from condominio.models import Proveedor, Suscripcion
-        from django.utils import timezone
-        from datetime import timedelta
-
-        try:
-            usuario = Usuario.objects.get(id=usuario_id)
-        except Usuario.DoesNotExist:
-            return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
-
-        proveedor, creado = Proveedor.objects.get_or_create(
-            usuario=usuario,
-            defaults={
-                "nombre_empresa": nombre_empresa,
-                "descripcion": descripcion,
-                "telefono": telefono,
-                "sitio_web": sitio_web,
-            },
-        )
-
-        # ============================
-        # 2️⃣ Crear la sesión de Stripe
-        # ============================
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            mode="payment",
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "bob",
-                        "product_data": {"name": nombre},
-                        "unit_amount": int(precio),
-                    },
-                    "quantity": cantidad,
-                }
-            ],
-            success_url=f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{url_frontend}/pago-cancelado/",
-            metadata={
-                "usuario_id": str(usuario.id),
-                "payment_type": "suscripcion",
-                "titulo": nombre,
-            },
-        )
-
-        # ============================
-        # 3️⃣ Crear la Suscripción directamente
-        # ============================
-        suscripcion = Suscripcion.objects.create(
-            proveedor=proveedor,
-            precio=(precio / 100),  # convertir de centavos a BOB
-            fecha_inicio=timezone.now().date(),
-            fecha_fin=timezone.now().date() + timedelta(days=30),
-            activa=True,
-        )
-
-        print(f"✅ Suscripción creada para {proveedor.nombre_empresa} (ID {suscripcion.id})")
-
-        # ============================
-        # 4️⃣ Devolver la URL de Stripe
-        # ============================
-        return Response({
-            "checkout_url": session.url,
-            "session_id": session.id,
-            "suscripcion_id": suscripcion.id,
-            "proveedor_id": proveedor.id,
-        })
-
-    except Exception as e:
-        print("❌ Error Stripe (suscripción manual):", e)
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    """
+    Endpoint deshabilitado - Requiere modelos Proveedor y Suscripcion eliminados.
+    """
+    return Response({
+        "error": "Funcionalidad temporalmente deshabilitada. Modelos Proveedor y Suscripcion fueron eliminados."
+    }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 # verificar_pago: si es suscripcion y pago confirmado -> crear/actualizar Suscripcion
+@api_view(["GET"])
 @api_view(["GET"])
 def verificar_pago(request):
     session_id = request.GET.get("session_id")
@@ -171,31 +90,10 @@ def verificar_pago(request):
         usuario_id_meta = metadata.get("usuario_id", None)
         titulo_meta = metadata.get("titulo", None)
 
-        if pago_exitoso and payment_type == "suscripcion":
-            # crear o actualizar Suscripcion
-            sus, created = Suscripcion.objects.get_or_create(
-                stripe_session_id=session.id,
-                defaults={
-                    "titulo": titulo_meta or "Suscripción",
-                    "precio_cents": int(session.amount_total or 0),
-                    "pago_confirmado": True,
-                },
-            )
-            if not created:
-                sus.pago_confirmado = True
-                sus.precio_cents = int(session.amount_total or sus.precio_cents)
-                sus.save()
-
-            # asociar usuario si metadata lo incluye y existe
-            if usuario_id_meta and usuario_id_meta != "anonimo":
-                try:
-                    User = get_user_model()
-                    user = User.objects.filter(id=int(usuario_id_meta)).first()
-                    if user and sus.usuario is None:
-                        sus.usuario = user
-                        sus.save()
-                except Exception:
-                    pass
+        # NOTA: Funcionalidad de suscripciones deshabilitada (modelo Suscripcion eliminado)
+        # if pago_exitoso and payment_type == "suscripcion":
+        #     # Esta funcionalidad requiere el modelo Suscripcion que fue eliminado
+        #     pass
 
         return Response({
             "pago_exitoso": pago_exitoso,
@@ -267,8 +165,11 @@ Recuerda: Responde como un asistente amable y profesional de turismo boliviano.
     """
 
     try:
-        # Inicializar cliente OpenAI de forma perezosa para evitar fallos en import time
-        client = get_openai_client()
+        # Inicializar cliente OpenAI
+        client = OpenAI(
+            api_key=os.getenv("GROQ_API_KEY"),
+            base_url="https://api.groq.com/openai/v1"
+        )
 
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -290,10 +191,10 @@ Recuerda: Responde como un asistente amable y profesional de turismo boliviano.
 
 @api_view(["GET"])
 def verificar_proveedor(request, usuario_id):
-    from condominio.models import Proveedor
-    existe = Proveedor.objects.filter(usuario_id=usuario_id).exists()
-    if existe:
-        proveedor = Proveedor.objects.get(usuario_id=usuario_id)
-        return Response({"existe": True, "proveedor_id": proveedor.id})
-    else:
-        return Response({"existe": False})
+    """
+    Endpoint deshabilitado - Requiere modelo Proveedor eliminado.
+    """
+    return Response({
+        "error": "Funcionalidad temporalmente deshabilitada. Modelo Proveedor fue eliminado.",
+        "existe": False
+    }, status=status.HTTP_501_NOT_IMPLEMENTED)

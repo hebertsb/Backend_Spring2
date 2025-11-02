@@ -177,18 +177,6 @@ class Servicio(TimeStampedModel):
         ('Activo', 'Activo'),
         ('Inactivo', 'Inactivo'),
     ]
-    
-    DEPARTAMENTOS = [
-        ('La Paz', 'La Paz'),
-        ('Santa Cruz', 'Santa Cruz'),
-        ('Cochabamba', 'Cochabamba'),
-        ('Potosí', 'Potosí'),
-        ('Oruro', 'Oruro'),
-        ('Tarija', 'Tarija'),
-        ('Chuquisaca', 'Chuquisaca'),
-        ('Beni', 'Beni'),
-        ('Pando', 'Pando'),
-    ]
 
     titulo = models.CharField(max_length=255)
     descripcion = models.TextField()
@@ -198,20 +186,6 @@ class Servicio(TimeStampedModel):
     estado = models.CharField(max_length=10, choices=ESTADOS, default='Activo')
     categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE, null=True, blank=True)
     proveedor = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)
-    
-    # Ubicación geográfica (NUEVO)
-    departamento = models.CharField(
-        max_length=50,
-        choices=DEPARTAMENTOS,
-        default='La Paz',
-        help_text="Departamento donde se realiza el servicio"
-    )
-    ciudad = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-        help_text="Ciudad específica del servicio"
-    )
 
     imagen_url = models.URLField(
         max_length=500,
@@ -230,6 +204,20 @@ class Servicio(TimeStampedModel):
         blank=True,
         help_text="Lista de servicios incluidos (ej: Guía, Transporte, Hotel)"
     )
+    
+    # Ubicación geográfica
+    departamento = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Departamento donde se realiza el servicio"
+    )
+    ciudad = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Ciudad donde se realiza el servicio"
+    )
 
     def __str__(self):
         return self.titulo
@@ -245,51 +233,10 @@ class Paquete(TimeStampedModel):
         ('Agotado', 'Agotado'),
     ]
     
-    DEPARTAMENTOS = [
-        ('La Paz', 'La Paz'),
-        ('Santa Cruz', 'Santa Cruz'),
-        ('Cochabamba', 'Cochabamba'),
-        ('Potosí', 'Potosí'),
-        ('Oruro', 'Oruro'),
-        ('Tarija', 'Tarija'),
-        ('Chuquisaca', 'Chuquisaca'),
-        ('Beni', 'Beni'),
-        ('Pando', 'Pando'),
-        ('Multi-departamental', 'Multi-departamental'),
-    ]
-    
-    TIPO_DESTINO = [
-        ('Urbano', 'Urbano'),
-        ('Rural', 'Rural'),
-        ('Natural', 'Natural'),
-        ('Histórico', 'Histórico'),
-        ('Mixto', 'Mixto'),
-    ]
-    
     nombre = models.CharField(max_length=200, help_text="Nombre del paquete turístico")
     es_personalizado = models.BooleanField(default=False, help_text="Indica si el paquete fue creado por el usuario")
     descripcion = models.TextField(help_text="Descripción detallada del paquete")
     duracion = models.CharField(max_length=50, help_text="Duración total del paquete (ej: 3 días, 1 semana)")
-    
-    # Ubicación geográfica (NUEVO)
-    departamento = models.CharField(
-        max_length=50, 
-        choices=DEPARTAMENTOS, 
-        default='La Paz',
-        help_text="Departamento principal del paquete turístico"
-    )
-    ciudad = models.CharField(
-        max_length=100, 
-        blank=True, 
-        null=True,
-        help_text="Ciudad o región específica"
-    )
-    tipo_destino = models.CharField(
-        max_length=20,
-        choices=TIPO_DESTINO,
-        default='Mixto',
-        help_text="Tipo de destino del paquete"
-    )
     
     # Servicios/Destinos incluidos en el paquete
     servicios = models.ManyToManyField(
@@ -361,6 +308,33 @@ class Paquete(TimeStampedModel):
         blank=True,
         related_name='paquetes_con_descuento',
         help_text="Campaña de descuento aplicable a este paquete"
+    )
+    
+    # Ubicación geográfica
+    departamento = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Departamento principal del paquete turístico"
+    )
+    ciudad = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Ciudad principal del paquete turístico"
+    )
+    tipo_destino = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        choices=[
+            ('Cultural', 'Cultural'),
+            ('Natural', 'Natural'),
+            ('Aventura', 'Aventura'),
+            ('Rural', 'Rural'),
+            ('Urbano', 'Urbano'),
+        ],
+        help_text="Tipo de destino turístico"
     )
 
     class Meta(TimeStampedModel.Meta):
@@ -708,10 +682,6 @@ class Notificacion(TimeStampedModel):
         ('ticket_nuevo', 'Ticket Nuevo'),
         ('ticket_respondido', 'Ticket Respondido'),
         ('ticket_cerrado', 'Ticket Cerrado'),
-        ('campana_marketing', 'Campaña Marketing'),
-        ('promocion', 'Promoción'),
-        ('recordatorio', 'Recordatorio'),
-        ('sistema', 'Sistema'),
     ]
 
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='notificaciones')
@@ -721,210 +691,6 @@ class Notificacion(TimeStampedModel):
 
     def __str__(self):
         return f"Notificación #{self.pk or 'Nueva'} -> {self.usuario.nombre} ({self.tipo})"
-
-
-# ======================================
-# 📢 CAMPAÑA DE NOTIFICACIONES
-# ======================================
-class CampanaNotificacion(TimeStampedModel):
-    """
-    Modelo para gestión administrativa de campañas de notificaciones push.
-    Permite crear, programar y enviar notificaciones masivas con segmentación.
-    """
-    ESTADOS = [
-        ('BORRADOR', 'Borrador'),
-        ('PROGRAMADA', 'Programada'),
-        ('EN_CURSO', 'En Curso'),
-        ('COMPLETADA', 'Completada'),
-        ('CANCELADA', 'Cancelada'),
-    ]
-    
-    TIPOS_AUDIENCIA = [
-        ('TODOS', 'Todos los usuarios'),
-        ('SEGMENTO', 'Segmento específico'),
-        ('USUARIOS', 'Lista de usuarios'),
-    ]
-    
-    # ========== Identificación ==========
-    nombre = models.CharField(
-        max_length=200, 
-        help_text="Nombre interno de la campaña para identificarla"
-    )
-    descripcion = models.TextField(
-        blank=True, 
-        null=True,
-        help_text="Descripción opcional del objetivo de la campaña"
-    )
-    
-    # ========== Contenido de la notificación ==========
-    titulo = models.CharField(
-        max_length=100, 
-        help_text="Título de la notificación push (visible en el dispositivo)"
-    )
-    cuerpo = models.TextField(
-        help_text="Cuerpo del mensaje de la notificación"
-    )
-    tipo_notificacion = models.CharField(
-        max_length=50, 
-        choices=Notificacion.TIPOS,
-        default='campana_marketing',
-        help_text="Tipo de notificación que se creará"
-    )
-    datos_extra = models.JSONField(
-        default=dict, 
-        blank=True,
-        help_text="Datos adicionales JSON (deep link, imagen_url, accion, etc.)"
-    )
-    
-    # ========== Audiencia y Segmentación ==========
-    tipo_audiencia = models.CharField(
-        max_length=20, 
-        choices=TIPOS_AUDIENCIA, 
-        default='TODOS',
-        help_text="Tipo de segmentación de audiencia"
-    )
-    usuarios_objetivo = models.ManyToManyField(
-        Usuario, 
-        blank=True, 
-        related_name='campanas_notificacion',
-        help_text="Usuarios específicos (solo si tipo_audiencia='USUARIOS')"
-    )
-    segmento_filtros = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text='Filtros Django ORM JSON: {"rol__nombre": "Cliente", "num_viajes__gte": 5}'
-    )
-    
-    # ========== Programación ==========
-    fecha_programada = models.DateTimeField(
-        null=True, 
-        blank=True,
-        help_text="Fecha y hora para envío automático. Si es null y enviar_inmediatamente=False, no se envía"
-    )
-    enviar_inmediatamente = models.BooleanField(
-        default=False,
-        help_text="Si es True, ignora fecha_programada y envía al activar"
-    )
-    
-    # ========== Estado y ejecución ==========
-    estado = models.CharField(
-        max_length=20, 
-        choices=ESTADOS, 
-        default='BORRADOR',
-        help_text="Estado actual de la campaña"
-    )
-    fecha_enviada = models.DateTimeField(
-        null=True, 
-        blank=True,
-        help_text="Fecha y hora en que se completó el envío"
-    )
-    enviado_por = models.ForeignKey(
-        Usuario, 
-        on_delete=models.SET_NULL, 
-        null=True,
-        blank=True,
-        related_name='campanas_enviadas',
-        help_text="Usuario administrador que activó el envío"
-    )
-    
-    # ========== Métricas ==========
-    total_destinatarios = models.IntegerField(
-        default=0,
-        help_text="Número total de usuarios objetivo calculado"
-    )
-    total_enviados = models.IntegerField(
-        default=0,
-        help_text="Número de notificaciones enviadas exitosamente"
-    )
-    total_leidos = models.IntegerField(
-        default=0,
-        help_text="Número de notificaciones leídas (se actualiza posteriormente)"
-    )
-    total_errores = models.IntegerField(
-        default=0,
-        help_text="Número de envíos fallidos"
-    )
-
-    class Meta(TimeStampedModel.Meta):
-        ordering = ['-created_at']
-        verbose_name = "Campaña de Notificación"
-        verbose_name_plural = "Campañas de Notificación"
-        indexes = [
-            models.Index(fields=['estado', 'fecha_programada']),
-            models.Index(fields=['tipo_audiencia']),
-        ]
-
-    def __str__(self):
-        return f"{self.nombre} ({self.get_estado_display()})"
-    
-    def obtener_usuarios_objetivo(self):
-        """
-        Calcula y retorna el queryset de usuarios que recibirán la notificación.
-        Aplica la lógica de segmentación según tipo_audiencia.
-        """
-        if self.tipo_audiencia == 'TODOS':
-            # Todos los usuarios activos
-            return Usuario.objects.filter(user__is_active=True)
-        
-        elif self.tipo_audiencia == 'USUARIOS':
-            # Lista específica de usuarios
-            return self.usuarios_objetivo.filter(user__is_active=True)
-        
-        elif self.tipo_audiencia == 'SEGMENTO':
-            # Filtros dinámicos desde JSON
-            filtros = self.segmento_filtros or {}
-            try:
-                # Siempre incluir que el user esté activo
-                return Usuario.objects.filter(user__is_active=True, **filtros)
-            except Exception as e:
-                # Si hay error en los filtros, registrar y retornar vacío
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f'Error aplicando filtros de segmento en campaña {self.id}: {e}')
-                return Usuario.objects.none()
-        
-        return Usuario.objects.none()
-    
-    def calcular_destinatarios(self):
-        """
-        Actualiza el contador total_destinatarios con el número de usuarios objetivo.
-        Útil antes de activar la campaña.
-        """
-        self.total_destinatarios = self.obtener_usuarios_objetivo().count()
-        self.save(update_fields=['total_destinatarios'])
-        return self.total_destinatarios
-    
-    def puede_editarse(self):
-        """Verifica si la campaña puede ser editada."""
-        return self.estado in ['BORRADOR', 'PROGRAMADA']
-    
-    def puede_activarse(self):
-        """Verifica si la campaña puede ser activada."""
-        return self.estado == 'BORRADOR'
-    
-    def puede_cancelarse(self):
-        """Verifica si la campaña puede ser cancelada."""
-        return self.estado in ['BORRADOR', 'PROGRAMADA']
-
-
-class FCMDevice(TimeStampedModel):
-    """Dispositivo / cliente registrado para recibir notificaciones FCM.
-
-    Campos en español para mantener consistencia con el proyecto.
-    """
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='dispositivos_fcm')
-    registration_id = models.CharField('token_registro', max_length=512, unique=True)
-    tipo_dispositivo = models.CharField('tipo_dispositivo', max_length=20, blank=True, null=True)  # 'web', 'android', 'ios'
-    nombre = models.CharField('nombre', max_length=200, blank=True, null=True)
-    activo = models.BooleanField('activo', default=True, help_text='Si el token está activo para recibir notificaciones')
-    ultima_vez = models.DateTimeField('ultima_vez', auto_now=True)
-
-    class Meta(TimeStampedModel.Meta):
-        verbose_name = 'Dispositivo FCM'
-        verbose_name_plural = 'Dispositivos FCM'
-
-    def __str__(self):
-        return f"{self.usuario} - {self.tipo_dispositivo or 'desconocido'} - {self.registration_id[:10]}"
 
 
 # ======================================
@@ -970,134 +736,3 @@ class ComprobantePago(TimeStampedModel):
 
     def __str__(self):
         return f"Comprobante #{self.pk or 'Nuevo'} - {self.reserva} - {self.estado}"
-
-
-
-# ============================
-# PROVEEDORES TURÍSTICOS
-# ============================
-class Proveedor(TimeStampedModel):
-    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="proveedor")
-    nombre_empresa = models.CharField(max_length=200)
-    descripcion = models.TextField(blank=True)
-    telefono = models.CharField(max_length=20, blank=True)
-    sitio_web = models.URLField(blank=True)
-
-    def __str__(self):
-        return self.nombre_empresa
-
-
-# ============================
-# SUSCRIPCIONES DE PROVEEDORES
-# ============================
-class Suscripcion(TimeStampedModel):
-    proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, related_name="suscripciones")
-    precio = models.DecimalField(max_digits=10, decimal_places=2)
-    fecha_inicio = models.DateField()
-    fecha_fin = models.DateField()
-    activa = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.proveedor} → {self.plan}"
-
-    def esta_vigente(self):
-        from django.utils import timezone
-        hoy = timezone.now().date()
-        return self.activa and self.fecha_inicio <= hoy <= self.fecha_fin
-
-# ======================================
-# SERIALIZERS
-# ======================================
-from rest_framework import serializers
-
-class UsuarioSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Usuario
-        fields = '__all__'
-
-
-class CategoriaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Categoria
-        fields = '__all__'
-
-
-class CampaniaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Campania
-        fields = '__all__'
-
-
-class CuponSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Cupon
-        fields = '__all__'
-
-
-class ServicioSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Servicio
-        fields = '__all__'
-
-
-class PaqueteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Paquete
-        fields = '__all__'
-
-
-class ReservaSerializer(serializers.ModelSerializer):
-    usuario_id = serializers.PrimaryKeyRelatedField(
-        queryset=Usuario.objects.all(), source="usuario", write_only=True)
-    
-    class Meta:
-        model = Reserva
-        fields = '__all__'
-
-
-class ReprogramacionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Reprogramacion
-        fields = '__all__'
-
-
-class TicketSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Ticket
-        fields = '__all__'
-
-
-class TicketMessageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TicketMessage
-        fields = '__all__'
-
-
-class NotificacionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Notificacion
-        fields = '__all__'
-
-
-class BitacoraSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Bitacora
-        fields = '__all__'
-
-
-class ComprobantePagoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ComprobantePago
-        fields = '__all__'
-
-
-class ProveedorSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Proveedor
-        fields = '__all__'
-
-
-class SuscripcionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Suscripcion
-        fields = '__all__'
