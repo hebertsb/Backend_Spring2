@@ -72,6 +72,7 @@ class Cupon(TimeStampedModel):
 # 🧾 RESERVA
 # ======================================
 class Reserva(TimeStampedModel):
+    id = models.AutoField(primary_key=True)
     ESTADOS = [
         ('PENDIENTE', 'Pendiente'),
         ('CONFIRMADA', 'Confirmada'), 
@@ -152,6 +153,19 @@ class ReservaVisitante(TimeStampedModel):
     def __str__(self):
         return f"Reserva {self.reserva.pk or 'Nueva'} - {self.visitante.nombre}"
 
+# ======================================
+# 🔗 RESERVA_SERVICIO (servicios múltiples por reserva)
+# ======================================
+class ReservaServicio(models.Model):
+    reserva = models.ForeignKey(Reserva, on_delete=models.CASCADE, related_name='servicios_reservados')
+    servicio = models.ForeignKey('Servicio', on_delete=models.CASCADE)
+    fecha = models.DateField()
+    fecha_inicio = models.DateTimeField(null=True, blank=True)
+    fecha_fin = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.reserva} - {self.servicio.titulo} ({self.fecha})"
+
 
 # ======================================
 # 🏞️ SERVICIO
@@ -163,6 +177,18 @@ class Servicio(TimeStampedModel):
         ('Activo', 'Activo'),
         ('Inactivo', 'Inactivo'),
     ]
+    
+    DEPARTAMENTOS = [
+        ('La Paz', 'La Paz'),
+        ('Santa Cruz', 'Santa Cruz'),
+        ('Cochabamba', 'Cochabamba'),
+        ('Potosí', 'Potosí'),
+        ('Oruro', 'Oruro'),
+        ('Tarija', 'Tarija'),
+        ('Chuquisaca', 'Chuquisaca'),
+        ('Beni', 'Beni'),
+        ('Pando', 'Pando'),
+    ]
 
     titulo = models.CharField(max_length=255)
     descripcion = models.TextField()
@@ -172,6 +198,20 @@ class Servicio(TimeStampedModel):
     estado = models.CharField(max_length=10, choices=ESTADOS, default='Activo')
     categoria = models.ForeignKey(Categoria, on_delete=models.CASCADE, null=True, blank=True)
     proveedor = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Ubicación geográfica (NUEVO)
+    departamento = models.CharField(
+        max_length=50,
+        choices=DEPARTAMENTOS,
+        default='La Paz',
+        help_text="Departamento donde se realiza el servicio"
+    )
+    ciudad = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Ciudad específica del servicio"
+    )
 
     imagen_url = models.URLField(
         max_length=500,
@@ -205,9 +245,51 @@ class Paquete(TimeStampedModel):
         ('Agotado', 'Agotado'),
     ]
     
+    DEPARTAMENTOS = [
+        ('La Paz', 'La Paz'),
+        ('Santa Cruz', 'Santa Cruz'),
+        ('Cochabamba', 'Cochabamba'),
+        ('Potosí', 'Potosí'),
+        ('Oruro', 'Oruro'),
+        ('Tarija', 'Tarija'),
+        ('Chuquisaca', 'Chuquisaca'),
+        ('Beni', 'Beni'),
+        ('Pando', 'Pando'),
+        ('Multi-departamental', 'Multi-departamental'),
+    ]
+    
+    TIPO_DESTINO = [
+        ('Urbano', 'Urbano'),
+        ('Rural', 'Rural'),
+        ('Natural', 'Natural'),
+        ('Histórico', 'Histórico'),
+        ('Mixto', 'Mixto'),
+    ]
+    
     nombre = models.CharField(max_length=200, help_text="Nombre del paquete turístico")
+    es_personalizado = models.BooleanField(default=False, help_text="Indica si el paquete fue creado por el usuario")
     descripcion = models.TextField(help_text="Descripción detallada del paquete")
     duracion = models.CharField(max_length=50, help_text="Duración total del paquete (ej: 3 días, 1 semana)")
+    
+    # Ubicación geográfica (NUEVO)
+    departamento = models.CharField(
+        max_length=50, 
+        choices=DEPARTAMENTOS, 
+        default='La Paz',
+        help_text="Departamento principal del paquete turístico"
+    )
+    ciudad = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Ciudad o región específica"
+    )
+    tipo_destino = models.CharField(
+        max_length=20,
+        choices=TIPO_DESTINO,
+        default='Mixto',
+        help_text="Tipo de destino del paquete"
+    )
     
     # Servicios/Destinos incluidos en el paquete
     servicios = models.ManyToManyField(

@@ -88,7 +88,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # For development you can also allow all origins (use carefully):
-# CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = True  # ✅ Habilitado para pruebas locales
 
 ROOT_URLCONF = 'config.urls'
 

@@ -8,7 +8,10 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet,
-    PerfilUsuarioViewSet, SoportePanelViewSet
+    PerfilUsuarioViewSet, SoportePanelViewSet,
+    # Endpoints de reportes
+    reporte_ventas_general, reporte_clientes, reporte_productos, 
+    reporte_por_voz, estadisticas_dashboard
 )
 from .api import BitacoraViewSet
 
@@ -37,6 +40,20 @@ router.register(r'perfil', PerfilUsuarioViewSet, basename='perfil')
 router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
 
 urlpatterns = router.urls + [
-     path('backups/', include('condominio.backups.urls')),
-  
+    path('backups/', include('condominio.backups.urls')),
+    path('reservas-multiservicio/',
+        __import__('condominio.api').api.ReservaConServiciosCreateView.as_view(),
+        name='reservas-multiservicio'),
+    path('confirmar-pago-multiservicio/',
+        __import__('condominio.api').api.ConfirmarPagoReservaMultiservicioView.as_view(),
+        name='confirmar-pago-multiservicio'),
+    
+    # =====================================================
+    # 📊 REPORTES AVANZADOS (CU19)
+    # =====================================================
+    path('reportes/ventas/', reporte_ventas_general, name='reporte-ventas'),
+    path('reportes/clientes/', reporte_clientes, name='reporte-clientes'),
+    path('reportes/productos/', reporte_productos, name='reporte-productos'),
+    path('reportes/voz/', reporte_por_voz, name='reporte-voz'),
+    path('reportes/dashboard/', estadisticas_dashboard, name='dashboard'),
 ]

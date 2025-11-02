@@ -1,3 +1,51 @@
+
+from .models import Paquete, Pago, Reserva, ReservaServicio
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+
+class ConfirmarPagoReservaMultiservicioView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        reserva_id = request.data.get('reserva_id')
+        monto = request.data.get('monto')
+        metodo = request.data.get('metodo', 'Tarjeta')
+        url_stripe = request.data.get('url_stripe')
+        reserva = Reserva.objects.filter(id=reserva_id).first()
+        if not reserva:
+            return Response({'error': 'Reserva no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Registrar el pago
+        pago = Pago.objects.create(
+            monto=monto,
+            metodo=metodo,
+            fecha_pago=timezone.now().date(),
+            estado='Confirmado',
+            url_stripe=url_stripe,
+            reserva=reserva
+        )
+
+        # Crear paquete personalizado asociado a la reserva
+        servicios = ReservaServicio.objects.filter(reserva=reserva)
+        nombres = [s.servicio.titulo for s in servicios]
+        nombre_paquete = f"Paquete personalizado: {', '.join(nombres)}"
+        paquete = Paquete.objects.create(
+            nombre=nombre_paquete,
+            descripcion=f"Paquete creado por el usuario con servicios: {', '.join(nombres)}",
+            duracion=f"{len(servicios)} días",
+            precio_base=monto,
+            cupos_disponibles=1,
+            cupos_ocupados=1,
+            estado='Activo',
+            es_personalizado=True
+        )
+        if paquete is not None:
+            reserva.paquete = paquete  # type: ignore
+            reserva.save()
+        return Response({'pago_id': pago.pk, 'paquete_id': paquete.pk}, status=status.HTTP_201_CREATED)
 from rest_framework import viewsets, permissions, filters
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
@@ -87,8 +135,30 @@ from .serializer import (
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
     HistorialReprogramacionSerializer, ConfiguracionGlobalReprogramacionSerializer,
     ReprogramacionSerializer, PaqueteCompletoSerializer, PaqueteSerializer, PerfilUsuarioSerializer,
-    SoporteResumenSerializer
+    SoporteResumenSerializer, ReservaConServiciosSerializer
 )
+# =====================================================
+# API para crear reservas con múltiples servicios y fechas
+# =====================================================
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+
+class ReservaConServiciosCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ReservaConServiciosSerializer(data=request.data)
+        if serializer.is_valid():
+            reserva = serializer.save(cliente=request.user.perfil)
+            # Si reserva es una lista, tomar el primer elemento
+            if isinstance(reserva, list):
+                reserva_id = reserva[0].id if reserva else None
+            else:
+                reserva_id = getattr(reserva, 'id', None)
+            return Response({'reserva_id': reserva_id}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
 from .serializer import BitacoraSerializer
 from .models import Ticket, TicketMessage, Notificacion
@@ -901,3 +971,442 @@ class BitacoraViewSet(viewsets.ModelViewSet):
     queryset = __import__('condominio.models', fromlist=['Bitacora']).Bitacora.objects.all()
     serializer_class = BitacoraSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+# =====================================================
+# 📊 REPORTES AVANZADOS (CU19)
+# =====================================================
+from .reportes import GeneradorReportes, InterpretadorComandosVoz
+from .export_utils import ExportadorReportesPDF, ExportadorReportesExcel
+from rest_framework.decorators import api_view, permission_classes
+from datetime import datetime
+from django.http import HttpResponse
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def reporte_ventas_general(request):
+    """
+    Genera reporte general de ventas con filtros opcionales.
+    
+    GET /api/reportes/ventas/?formato=pdf&moneda=USD&fecha_inicio=2025-01-01&fecha_fin=2025-01-31
+    o
+    POST /api/reportes/ventas/
+    Body:
+    {
+        "fecha_inicio": "2025-01-01",  // opcional
+        "fecha_fin": "2025-01-31",     // opcional
+        "monto_minimo": 1000,          // opcional
+        "monto_maximo": 5000,          // opcional
+        "tipo_producto": "paquete",    // opcional: "paquete", "servicio"
+        "estado": "PAGADA",            // opcional
+        "limite": 10,                  // opcional (default: 5)
+        "formato": "json"              // opcional: "json", "pdf", "excel"
+    }
+    """
+    filtros = {}
+    
+    # Determinar si es GET o POST
+    data_source = request.GET if request.method == 'GET' else request.data
+    
+    # Parsear filtros del request
+    if data_source.get('fecha_inicio'):
+        try:
+            filtros['fecha_inicio'] = datetime.fromisoformat(data_source['fecha_inicio'])
+        except ValueError:
+            pass
+    
+    if data_source.get('fecha_fin'):
+        try:
+            filtros['fecha_fin'] = datetime.fromisoformat(data_source['fecha_fin'])
+        except ValueError:
+            pass
+    
+    if data_source.get('monto_minimo'):
+        filtros['monto_minimo'] = data_source['monto_minimo']
+    
+    if data_source.get('monto_maximo'):
+        filtros['monto_maximo'] = data_source['monto_maximo']
+    
+    if data_source.get('tipo_producto'):
+        filtros['tipo_producto'] = data_source['tipo_producto']
+    
+    if data_source.get('estado'):
+        filtros['estado'] = data_source['estado']
+    
+    if data_source.get('limite'):
+        filtros['limite'] = data_source['limite']
+    
+    # Formato de salida y moneda
+    formato = data_source.get('formato', 'json').lower()
+    moneda = data_source.get('moneda', 'USD').upper()
+    filtros['moneda'] = moneda
+    
+    # Generar reporte
+    reporte = GeneradorReportes.reporte_ventas_general(filtros)
+    
+    # Logging
+    log_bitacora(
+        request, 
+        'Reporte Ventas General',
+        f"Generado reporte de ventas con filtros: {filtros} en formato {formato}"
+    )
+    
+    # Exportar según formato
+    if formato == 'pdf':
+        exportador = ExportadorReportesPDF()
+        pdf_buffer = exportador.generar_reporte_ventas_general(reporte)
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        filename = f"reporte_ventas_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    
+    elif formato == 'excel':
+        exportador = ExportadorReportesExcel()
+        excel_buffer = exportador.generar_reporte_ventas_general(reporte)
+        response = HttpResponse(
+            excel_buffer, 
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"reporte_ventas_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    
+    # JSON (por defecto)
+    return Response(reporte, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reporte_clientes(request):
+    """
+    Genera reporte detallado de clientes.
+    
+    POST /api/reportes/clientes/
+    Body: (mismos filtros que reporte_ventas_general)
+    """
+    filtros = {}
+    
+    if request.data.get('fecha_inicio'):
+        try:
+            filtros['fecha_inicio'] = datetime.fromisoformat(request.data['fecha_inicio'])
+        except ValueError:
+            pass
+    
+    if request.data.get('fecha_fin'):
+        try:
+            filtros['fecha_fin'] = datetime.fromisoformat(request.data['fecha_fin'])
+        except ValueError:
+            pass
+    
+    if request.data.get('monto_minimo'):
+        filtros['monto_minimo'] = request.data['monto_minimo']
+    
+    if request.data.get('cliente_id'):
+        filtros['cliente_id'] = request.data['cliente_id']
+    
+    reporte = GeneradorReportes.reporte_clientes_detallado(filtros)
+
+    formato = request.data.get('formato', 'json').lower()
+
+    log_bitacora(
+        request,
+        'Reporte Clientes',
+        f"Generado reporte de clientes con filtros: {filtros} en formato {formato}"
+    )
+
+    if formato == 'pdf':
+        exportador = ExportadorReportesPDF()
+        pdf_buffer = exportador.generar_reporte_clientes(reporte)
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        filename = f"reporte_clientes_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    if formato == 'excel':
+        exportador = ExportadorReportesExcel()
+        excel_buffer = exportador.generar_reporte_clientes(reporte)
+        response = HttpResponse(
+            excel_buffer,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"reporte_clientes_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    return Response(reporte, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def reporte_productos(request):
+    """
+    Genera reporte de rendimiento de productos.
+    
+    GET /api/reportes/productos/?formato=pdf&moneda=USD&departamento=La Paz&tipo_cliente=vip
+    
+    Filtros soportados (todos opcionales):
+    - formato: pdf | excel | json (por defecto: json)
+    - moneda: USD | BOB (por defecto: USD)
+    - fecha_inicio: YYYY-MM-DD
+    - fecha_fin: YYYY-MM-DD
+    - tipo_producto: paquete | servicio
+    - departamento: La Paz | Santa Cruz | Cochabamba | etc.
+    - ciudad: nombre de ciudad
+    - tipo_destino: Natural | Histórico | Urbano | Rural | Mixto
+    - tipo_cliente: nuevo | recurrente | vip
+    - estado: PENDIENTE | CONFIRMADA | PAGADA | COMPLETADA | CANCELADA
+    - solo_destacados: true | false
+    - solo_personalizados: true | false
+    - solo_fines_semana: true | false
+    - mes: 1-12
+    - año: 2024 | 2025
+    - trimestre: 1 | 2 | 3 | 4
+    - monto_minimo: número
+    - monto_maximo: número
+    - con_campana: true | false
+    """
+    filtros = {}
+    
+    # Fechas
+    if request.GET.get('fecha_inicio'):
+        try:
+            filtros['fecha_inicio'] = datetime.fromisoformat(request.GET['fecha_inicio'])
+        except ValueError:
+            pass
+    
+    if request.GET.get('fecha_fin'):
+        try:
+            filtros['fecha_fin'] = datetime.fromisoformat(request.GET['fecha_fin'])
+        except ValueError:
+            pass
+    
+    # Tipo de producto
+    if request.GET.get('tipo_producto'):
+        filtros['tipo_producto'] = request.GET['tipo_producto']
+    
+    # Filtros geográficos (v2.1)
+    if request.GET.get('departamento'):
+        filtros['departamento'] = request.GET['departamento']
+    
+    if request.GET.get('ciudad'):
+        filtros['ciudad'] = request.GET['ciudad']
+    
+    if request.GET.get('tipo_destino'):
+        filtros['tipo_destino'] = request.GET['tipo_destino']
+    
+    # Filtros de cliente (v2.1)
+    if request.GET.get('tipo_cliente'):
+        filtros['tipo_cliente'] = request.GET['tipo_cliente']
+    
+    if request.GET.get('cliente_id'):
+        try:
+            filtros['cliente_id'] = int(request.GET['cliente_id'])
+        except ValueError:
+            pass
+    
+    # Filtros de estado
+    if request.GET.get('estado'):
+        filtros['estado'] = request.GET['estado']
+    
+    # Filtros de producto
+    if request.GET.get('solo_destacados') in ['true', 'True', '1']:
+        filtros['solo_destacados'] = True
+    
+    if request.GET.get('solo_personalizados') in ['true', 'True', '1']:
+        filtros['solo_personalizados'] = True
+    
+    if request.GET.get('categoria'):
+        filtros['categoria'] = request.GET['categoria']
+    
+    if request.GET.get('duracion_dias'):
+        try:
+            filtros['duracion_dias'] = int(request.GET['duracion_dias'])
+        except ValueError:
+            pass
+    
+    # Filtros temporales avanzados (v2.1)
+    if request.GET.get('solo_fines_semana') in ['true', 'True', '1']:
+        filtros['solo_fines_semana'] = True
+    
+    if request.GET.get('solo_dias_semana') in ['true', 'True', '1']:
+        filtros['solo_dias_semana'] = True
+    
+    if request.GET.get('mes'):
+        try:
+            filtros['mes'] = int(request.GET['mes'])
+        except ValueError:
+            pass
+    
+    if request.GET.get('año'):
+        try:
+            filtros['año'] = int(request.GET['año'])
+        except ValueError:
+            pass
+    
+    if request.GET.get('trimestre'):
+        try:
+            filtros['trimestre'] = int(request.GET['trimestre'])
+        except ValueError:
+            pass
+    
+    # Filtros de monto
+    if request.GET.get('monto_minimo'):
+        try:
+            from decimal import Decimal
+            filtros['monto_minimo'] = Decimal(request.GET['monto_minimo'])
+        except (ValueError, TypeError):
+            pass
+    
+    if request.GET.get('monto_maximo'):
+        try:
+            from decimal import Decimal
+            filtros['monto_maximo'] = Decimal(request.GET['monto_maximo'])
+        except (ValueError, TypeError):
+            pass
+    
+    # Filtros de campaña
+    if request.GET.get('con_campana') in ['true', 'True', '1']:
+        filtros['con_campana'] = True
+    
+    if request.GET.get('campana_id'):
+        try:
+            filtros['campana_id'] = int(request.GET['campana_id'])
+        except ValueError:
+            pass
+    
+    # Formato de salida y moneda
+    formato = request.GET.get('formato', 'json').lower()
+    moneda = request.GET.get('moneda', 'USD').upper()
+    filtros['moneda'] = moneda
+    
+    reporte = GeneradorReportes.reporte_productos_rendimiento(filtros)
+    
+    log_bitacora(
+        request, 
+        'Reporte Productos',
+        f"Generado reporte de productos con filtros: {filtros} en formato {formato}"
+    )
+    
+    # Exportar según formato
+    if formato == 'pdf':
+        exportador = ExportadorReportesPDF()
+        pdf_buffer = exportador.generar_reporte_productos(reporte)
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        filename = f"reporte_productos_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    
+    if formato == 'excel':
+        exportador = ExportadorReportesExcel()
+        excel_buffer = exportador.generar_reporte_productos(reporte)
+        response = HttpResponse(
+            excel_buffer,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"reporte_productos_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    
+    return Response(reporte, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reporte_por_voz(request):
+    """
+    Genera reporte basado en comando de voz (texto).
+    
+    POST /api/reportes/voz/
+    Body:
+    {
+        "comando": "quiero un reporte desde el 1/1/2025 hasta el 30/1/2025 solo con los clientes que compraron paquetes mayores a 1000 bs"
+    }
+    
+    Respuesta incluye:
+    - filtros_interpretados: los filtros que se extrajeron del comando
+    - reporte: datos del reporte generado
+    """
+    comando = request.data.get('comando', '')
+    
+    if not comando:
+        return Response(
+            {'error': 'Comando de voz requerido'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Interpretar comando
+    filtros = InterpretadorComandosVoz.interpretar(comando)
+
+    # Generar reporte
+    reporte = GeneradorReportes.reporte_ventas_general(filtros)
+
+    # Logging
+    log_bitacora(
+        request,
+        'Reporte por Voz',
+        f"Comando: {comando[:100]}... | Filtros: {filtros}"
+    )
+
+    # Soporte para exportación según formato detectado o indicado
+    formato = filtros.get('formato', 'json')
+    limite = filtros.get('limite')
+
+    # Si se solicitó PDF
+    if formato == 'pdf':
+        exportador = ExportadorReportesPDF()
+        pdf_buffer = exportador.generar_reporte_ventas_general(reporte)
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        filename = f"reporte_voz_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    # Si se solicitó Excel
+    if formato == 'excel':
+        exportador = ExportadorReportesExcel()
+        excel_buffer = exportador.generar_reporte_ventas_general(reporte)
+        response = HttpResponse(
+            excel_buffer,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"reporte_voz_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    # JSON por defecto: serializar filtros para JSON
+    filtros_serializables = {}
+    for k, v in filtros.items():
+        if isinstance(v, datetime):
+            filtros_serializables[k] = v.isoformat()
+        else:
+            filtros_serializables[k] = str(v)
+
+    return Response({
+        'filtros_interpretados': filtros_serializables,
+        'reporte': reporte
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def estadisticas_dashboard(request):
+    """
+    Endpoint para dashboard con estadísticas generales (últimos 30 días).
+    
+    GET /api/reportes/dashboard/
+    """
+    from datetime import timedelta
+    hoy = timezone.now().date()
+    hace_30_dias = hoy - timedelta(days=30)
+    
+    filtros = {
+        'fecha_inicio': datetime.combine(hace_30_dias, datetime.min.time()),
+        'fecha_fin': datetime.combine(hoy, datetime.max.time())
+    }
+    
+    reporte = GeneradorReportes.reporte_ventas_general(filtros)
+    
+    return Response({
+        'periodo': '30 días',
+        'datos': reporte
+    }, status=status.HTTP_200_OK)

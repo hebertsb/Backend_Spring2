@@ -18,7 +18,32 @@ from .models import (
     ConfiguracionGlobalReprogramacion,
     Reprogramacion,
     ComprobantePago,
+    ReservaServicio,
 )
+# =====================================================
+# 🔗 RESERVA_SERVICIO
+# =====================================================
+class ReservaServicioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReservaServicio
+        fields = ['id', 'servicio', 'fecha', 'fecha_inicio', 'fecha_fin']
+
+# =====================================================
+# Reserva con servicios múltiples
+# =====================================================
+class ReservaConServiciosSerializer(serializers.ModelSerializer):
+    servicios = ReservaServicioSerializer(many=True)
+
+    class Meta:
+        model = Reserva
+        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'servicios']
+
+    def create(self, validated_data):
+        servicios_data = validated_data.pop('servicios')
+        reserva = Reserva.objects.create(**validated_data)
+        for servicio_data in servicios_data:
+            ReservaServicio.objects.create(reserva=reserva, **servicio_data)
+        return reserva
 
 
 # =====================================================
@@ -323,8 +348,9 @@ class PaqueteSerializer(serializers.ModelSerializer):
             "disponibilidad",
             "campania_info",
             "created_at",
+            "es_personalizado",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "es_personalizado"]
 
     def get_servicios_incluidos(self, obj):
         """Lista de servicios/destinos incluidos en el paquete"""
@@ -448,19 +474,26 @@ class CuponSerializer(serializers.ModelSerializer):
 # 🏞️ SERVICIO
 # =====================================================
 class ServicioSerializer(serializers.ModelSerializer):
-    categoria = CategoriaSerializer(read_only=True)
-    categoria_id = serializers.PrimaryKeyRelatedField(
-        queryset=Categoria.objects.all(), source="categoria", write_only=True
-    )
-    proveedor = UsuarioSerializer(read_only=True)
-    proveedor_id = serializers.PrimaryKeyRelatedField(
-        queryset=Usuario.objects.all(), source="proveedor", write_only=True
-    )
+    categoria = CategoriaSerializer(read_only=True, default=None)
+    proveedor = UsuarioSerializer(read_only=True, default=None)
 
     class Meta:
         model = Servicio
-        fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        fields = [
+            "id",
+            "titulo",
+            "descripcion",
+            "duracion",
+            "capacidad_max",
+            "punto_encuentro",
+            "estado",
+            "imagen_url",
+            "precio_usd",
+            "servicios_incluidos",
+            "categoria",
+            "proveedor"
+        ]
+        read_only_fields = ["id"]
 
 
 # =====================================================
