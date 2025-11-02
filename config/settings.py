@@ -112,20 +112,18 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # ----------------------------------------------------------------------------------
-# 🛑 CONFIGURACIÓN DE BASE DE DATOS FORZADA PARA MODO LOCAL (SQLite)
-# Todo lo relacionado con bases de datos remotas (Railway/Postgres) está comentado.
-# Para volver a usar la DB remota, descomenta la lógica de abajo y comenta esta sección.
+# � CONFIGURACIÓN DE BASE DE DATOS - MODO PRODUCCIÓN (PostgreSQL/Railway)
+# SQLite comentado para usar base de datos de producción
 # ----------------------------------------------------------------------------------
 
-# Database (SQLite Local)
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {
-     'default': {
-         'ENGINE': 'django.db.backends.sqlite3',
-         'NAME': BASE_DIR / 'db.sqlite3',
-     }
-}
+# # Database (SQLite Local) - COMENTADO PARA PRODUCCIÓN
+# # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# # DATABASES = {
+# #      'default': {
+# #          'ENGINE': 'django.db.backends.sqlite3',
+# #          'NAME': BASE_DIR / 'db.sqlite3',
+# #      }
+# # }
 
 
 # --------------------------------------------------------------------------------------------------
