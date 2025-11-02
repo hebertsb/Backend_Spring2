@@ -1133,12 +1133,12 @@ class ExportadorReportesWord:
         # ============================================
         # 1. TÍTULO PRINCIPAL
         # ============================================
-        titulo = doc.add_heading('Reporte Detallado de Clientes', level=0)
+        titulo = doc.add_heading('Reporte Detallado de Clientes', level=1)
         titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        titulo_run = titulo.runs[0]
-        titulo_run.font.color.rgb = self.colores['titulo']
-        titulo_run.font.size = Pt(24)
-        titulo_run.font.bold = True
+        for run in titulo.runs:
+            run.font.color.rgb = self.colores['titulo']
+            run.font.size = Pt(24)
+            run.font.bold = True
         
         # Fecha de generación
         fecha_generacion = doc.add_paragraph()
@@ -1156,7 +1156,8 @@ class ExportadorReportesWord:
         # ============================================
         if filtros:
             filtros_heading = doc.add_heading('Filtros Aplicados', level=1)
-            filtros_heading.runs[0].font.color.rgb = self.colores['subtitulo']
+            for run in filtros_heading.runs:
+                run.font.color.rgb = self.colores['subtitulo']
             
             # Moneda
             moneda = filtros.get('moneda', 'USD')
@@ -1200,7 +1201,8 @@ class ExportadorReportesWord:
         # 3. RESUMEN GENERAL
         # ============================================
         resumen_heading = doc.add_heading('Resumen General', level=1)
-        resumen_heading.runs[0].font.color.rgb = self.colores['subtitulo']
+        for run in resumen_heading.runs:
+            run.font.color.rgb = self.colores['subtitulo']
         
         # Tabla de resumen (2 columnas)
         table_resumen = doc.add_table(rows=4, cols=2)
@@ -1217,9 +1219,8 @@ class ExportadorReportesWord:
             cell_run = cell_paragraph.runs[0]
             cell_run.font.bold = True
             cell_run.font.color.rgb = RGBColor(255, 255, 255)
-            shading_elm = cell._element.get_or_add_tcPr().get_or_add_shd()
-            shading_elm.set_val("clear")
-            shading_elm.set_fill("2980B9")  # Azul #2980B9
+            shading_elm = parse_xml(r'<w:shd {} w:fill="2980B9"/>'.format(nsdecls('w')))
+            cell._tc.get_or_add_tcPr().append(shading_elm)
             cell_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         # Datos de resumen
@@ -1239,7 +1240,8 @@ class ExportadorReportesWord:
             row_cells[1].text = value
             
             # Negrita en etiquetas
-            row_cells[0].paragraphs[0].runs[0].font.bold = True
+            for run in row_cells[0].paragraphs[0].runs:
+                run.font.bold = True
             # Centrar valores
             row_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         
@@ -1249,7 +1251,8 @@ class ExportadorReportesWord:
         # 4. DETALLE DE CLIENTES
         # ============================================
         clientes_heading = doc.add_heading('Detalle de Clientes', level=1)
-        clientes_heading.runs[0].font.color.rgb = self.colores['subtitulo']
+        for run in clientes_heading.runs:
+            run.font.color.rgb = self.colores['subtitulo']
         
         if not clientes:
             doc.add_paragraph('No se encontraron clientes con los filtros aplicados.')
@@ -1439,11 +1442,14 @@ class ExportadorReportesWord:
                     run.font.color.rgb = RGBColor(255, 255, 255)
                     run.font.size = Pt(11)
         
+        # Obtener símbolo de moneda
+        simbolo_moneda = resumen.get('simbolo_moneda', '$')
+        
         # Datos de resumen
         row_data = [
-            ('Total de Ventas', f"${resumen.get('total_ventas', 0):,.2f}"),
+            ('Total de Ventas', f"{simbolo_moneda}{resumen.get('total_ventas', 0):,.2f}"),
             ('Número de Transacciones', str(resumen.get('total_transacciones', 0))),
-            ('Ticket Promedio', f"${resumen.get('ticket_promedio', 0):,.2f}"),
+            ('Ticket Promedio', f"{simbolo_moneda}{resumen.get('ticket_promedio', 0):,.2f}"),
         ]
         
         for i, (metrica, valor) in enumerate(row_data, start=1):
@@ -1493,7 +1499,7 @@ class ExportadorReportesWord:
                 row_cells[0].text = venta.get('cliente', 'N/A')
                 row_cells[1].text = venta.get('producto', 'N/A')
                 row_cells[2].text = venta.get('fecha', 'N/A')
-                row_cells[3].text = f"${venta.get('monto', 0):,.2f}"
+                row_cells[3].text = f"{simbolo_moneda}{venta.get('monto', 0):,.2f}"
                 row_cells[4].text = venta.get('estado', 'N/A')
                 
                 # Ajustar tamaño de fuente
@@ -1587,12 +1593,24 @@ class ExportadorReportesWord:
                 run.font.color.rgb = self.colores['subtitulo']
             
             filtros_text = []
-            if filtros.get('departamento'):
-                filtros_text.append(f"Departamento: {filtros['departamento']}")
             if filtros.get('moneda'):
                 filtros_text.append(f"Moneda: {filtros['moneda']}")
+            
+            # Período de fechas
+            fecha_inicio = filtros.get('fecha_inicio')
+            fecha_fin = filtros.get('fecha_fin')
+            if fecha_inicio or fecha_fin:
+                inicio_str = fecha_inicio if isinstance(fecha_inicio, str) else (fecha_inicio.strftime('%d/%m/%Y') if fecha_inicio else 'N/A')
+                fin_str = fecha_fin if isinstance(fecha_fin, str) else (fecha_fin.strftime('%d/%m/%Y') if fecha_fin else 'N/A')
+                filtros_text.append(f"Periodo: {inicio_str} - {fin_str}")
+            
+            if filtros.get('departamento'):
+                filtros_text.append(f"Departamento: {filtros['departamento']}")
+            if filtros.get('ciudad'):
+                filtros_text.append(f"Ciudad: {filtros['ciudad']}")
             if filtros.get('tipo_producto'):
-                filtros_text.append(f"Tipo: {filtros['tipo_producto']}")
+                tipo_display = 'Paquetes' if filtros['tipo_producto'] == 'paquete' else 'Servicios' if filtros['tipo_producto'] == 'servicio' else 'Todos'
+                filtros_text.append(f"Tipo: {tipo_display}")
             
             if filtros_text:
                 filtros_p = doc.add_paragraph(' | '.join(filtros_text))
@@ -1627,9 +1645,10 @@ class ExportadorReportesWord:
                     run.font.size = Pt(11)
         
         # Datos de resumen
+        simbolo_moneda = resumen.get('simbolo_moneda', '$')
         row_data = [
             ('Total de Productos', str(resumen.get('total_productos', 0))),
-            ('Ventas Totales', f"${resumen.get('ventas_totales', 0):,.2f}"),
+            ('Ventas Totales', f"{simbolo_moneda}{resumen.get('ventas_totales', 0):,.2f}"),
             ('Producto Más Vendido', resumen.get('producto_mas_vendido', 'N/A')),
         ]
         
@@ -1654,13 +1673,17 @@ class ExportadorReportesWord:
             for run in detalle_heading.runs:
                 run.font.color.rgb = self.colores['subtitulo']
             
-            # Tabla de productos
+            # Obtener moneda y símbolo
+            moneda = resumen.get('moneda', 'USD')
+            simbolo_moneda = resumen.get('simbolo_moneda', '$')
+            
+            # Tabla de productos con 5 columnas
             table_productos = doc.add_table(rows=1, cols=5)
             table_productos.style = 'Light Grid Accent 1'
             
             # Encabezados
             hdr_cells = table_productos.rows[0].cells
-            headers = ['Nombre', 'Categoría', 'Precio', 'Ventas', 'Estado']
+            headers = ['Nombre', 'Categoría', 'Precio', 'Ventas', 'Conv. %']
             for i, header in enumerate(headers):
                 hdr_cells[i].text = header
             
@@ -1679,9 +1702,18 @@ class ExportadorReportesWord:
                 row_cells = table_productos.add_row().cells
                 row_cells[0].text = producto.get('nombre', 'N/A')
                 row_cells[1].text = producto.get('categoria', 'N/A')
-                row_cells[2].text = f"${producto.get('precio', 0):,.2f}"
-                row_cells[3].text = str(producto.get('total_ventas', 0))
-                row_cells[4].text = producto.get('estado', 'N/A')
+                row_cells[2].text = f"{simbolo_moneda}{producto.get('precio', 0):,.2f}"
+                
+                # Ventas según moneda seleccionada
+                if moneda == 'USD':
+                    ventas = producto.get('total_ventas_usd', 0)
+                elif moneda == 'BOB':
+                    ventas = producto.get('total_ventas_bob', 0)
+                else:  # AMBAS
+                    ventas = producto.get('total_ventas_usd', 0)
+                
+                row_cells[3].text = f"{simbolo_moneda}{ventas:,.2f}"
+                row_cells[4].text = f"{producto.get('tasa_conversion', 0):.1f}%"
                 
                 # Ajustar tamaño de fuente
                 for cell in row_cells:
@@ -1690,7 +1722,7 @@ class ExportadorReportesWord:
                             run.font.size = Pt(9)
             
             # Ajustar anchos de columna
-            for i, width in enumerate([Inches(2.0), Inches(1.5), Inches(1.2), Inches(1.0), Inches(1.0)]):
+            for i, width in enumerate([Inches(2.5), Inches(1.5), Inches(1.2), Inches(1.5), Inches(0.8)]):
                 for row in table_productos.rows:
                     row.cells[i].width = width
         
@@ -1717,3 +1749,427 @@ class ExportadorReportesWord:
         doc.save(buffer)
         buffer.seek(0)
         return buffer
+
+
+# ============================================================================
+# 🎯 FUNCIONES WRAPPER PARA views_reportes.py
+# ============================================================================
+
+def exportar_reporte_pdf(datos, tipo_reporte, filtros):
+    """
+    Función wrapper para generar reportes en PDF.
+    
+    Args:
+        datos: Lista de diccionarios con los datos
+        tipo_reporte: 'ventas', 'clientes' o 'productos'
+        filtros: Diccionario con filtros aplicados
+    
+    Returns:
+        BytesIO con el PDF generado
+    """
+    moneda = filtros.get('moneda', 'BOB')
+    exportador = ExportadorReportesPDF(moneda=moneda)
+    
+    # Preparar estructura de datos según el tipo
+    if tipo_reporte == 'productos':
+        # Separar productos por tipo
+        paquetes = [d for d in datos if d.get('tipo') == 'Paquete']
+        servicios = [d for d in datos if d.get('tipo') == 'Servicio']
+        
+        # Convertir a formato esperado por generar_reporte_productos
+        paquetes_formateados = []
+        for p in paquetes:
+            paquetes_formateados.append({
+                'paquete__nombre': p.get('nombre', 'N/A'),
+                'paquete__categoria__nombre': p.get('categoria', 'N/A'),
+                'paquete__departamento': p.get('departamento', 'N/A'),
+                'paquete__precio_base': p.get('precio', 0),
+                'paquete__precio_base_usd': p.get('precio', 0),
+                'paquete__precio_base_bob': p.get('precio', 0) * 6.96,
+                'cantidad_vendida': p.get('num_ventas', 0),
+                'ventas_totales_usd': p.get('total_ventas_usd', 0),
+                'ventas_totales_bob': p.get('total_ventas_bob', 0),
+                'tasa_conversion': p.get('tasa_conversion', 0)
+            })
+        
+        servicios_formateados = []
+        for s in servicios:
+            servicios_formateados.append({
+                'servicio__titulo': s.get('nombre', 'N/A'),
+                'servicio__categoria__nombre': s.get('categoria', 'N/A'),
+                'servicio__departamento': s.get('departamento', 'N/A'),
+                'servicio__precio_usd': s.get('precio', 0),
+                'servicio__precio_bob': s.get('precio', 0) * 6.96,
+                'cantidad_vendida': s.get('num_ventas', 0),
+                'ventas_totales_usd': s.get('total_ventas_usd', 0),
+                'ventas_totales_bob': s.get('total_ventas_bob', 0),
+                'tasa_conversion': s.get('tasa_conversion', 0)
+            })
+        
+        reporte_data = {
+            'paquetes': paquetes_formateados,
+            'servicios': servicios_formateados,
+            'filtros_aplicados': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+        return exportador.generar_reporte_productos(reporte_data)
+    
+    elif tipo_reporte == 'ventas':
+        # Calcular métricas desde datos simples
+        total_ventas = sum(d.get('monto', 0) for d in datos)
+        cantidad_reservas = len(datos)
+        ticket_promedio = total_ventas / cantidad_reservas if cantidad_reservas > 0 else 0
+        
+        reporte_data = {
+            'metricas_generales': {
+                'total_ventas': total_ventas,
+                'cantidad_reservas': cantidad_reservas,
+                'ticket_promedio': ticket_promedio,
+                'total_pagado': total_ventas
+            },
+            'periodo': {
+                'fecha_inicio': filtros.get('fecha_inicio'),
+                'fecha_fin': filtros.get('fecha_fin')
+            },
+            'ventas': datos,  # Lista de ventas individuales
+            'filtros_aplicados': filtros,
+            'total_registros': len(datos)
+        }
+        return exportador.generar_reporte_ventas_general(reporte_data)
+    
+    elif tipo_reporte == 'clientes':
+        # Obtener moneda de filtros
+        moneda = filtros.get('moneda', 'USD').upper()
+        
+        # Calcular resumen con moneda correcta
+        total_clientes = len(datos)
+        if moneda == 'BOB':
+            total_gastado_global = sum(d.get('total_gastado_bob', 0) for d in datos)
+            simbolo_moneda = 'Bs.'
+        else:  # USD o AMBAS
+            total_gastado_global = sum(d.get('total_gastado_usd', 0) for d in datos)
+            simbolo_moneda = '$'
+        
+        # Preparar clientes con el campo correcto de monto
+        clientes_formateados = []
+        for cliente in datos:
+            if moneda == 'BOB':
+                total_gastado = cliente.get('total_gastado_bob', 0)
+            else:
+                total_gastado = cliente.get('total_gastado_usd', 0)
+            
+            clientes_formateados.append({
+                'cliente__nombre': cliente.get('nombre', 'N/A'),
+                'cliente__user__email': cliente.get('email', 'N/A'),
+                'total_gastado': total_gastado,
+                'cantidad_reservas': cliente.get('num_reservas', 0),
+                'ticket_promedio': total_gastado / cliente.get('num_reservas', 1) if cliente.get('num_reservas', 0) > 0 else 0,
+                'ultima_compra': 'N/A',  # Se puede agregar después si es necesario
+                'tipo_cliente': cliente.get('tipo', 'N/A')
+            })
+        
+        reporte_data = {
+            'clientes': clientes_formateados,
+            'cantidad_clientes': total_clientes,
+            'resumen': {
+                'total_clientes': total_clientes,
+                'total_gastado_global': total_gastado_global,
+                'simbolo_moneda': simbolo_moneda,
+                'moneda': moneda
+            },
+            'filtros': filtros,
+            'filtros_aplicados': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+        return exportador.generar_reporte_clientes(reporte_data)
+    
+    else:
+        # Fallback genérico
+        reporte_data = {
+            'datos': datos,
+            'filtros': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+        return exportador.generar_reporte_ventas_general(reporte_data)
+
+
+def exportar_reporte_excel(datos, tipo_reporte, filtros):
+    """
+    Función wrapper para generar reportes en Excel.
+    
+    Args:
+        datos: Lista de diccionarios con los datos
+        tipo_reporte: 'ventas', 'clientes' o 'productos'
+        filtros: Diccionario con filtros aplicados
+    
+    Returns:
+        BytesIO con el Excel generado
+    """
+    moneda = filtros.get('moneda', 'BOB')
+    exportador = ExportadorReportesExcel(moneda=moneda)
+    
+    # Preparar estructura de datos según el tipo
+    if tipo_reporte == 'productos':
+        # Separar productos por tipo
+        paquetes = [d for d in datos if d.get('tipo') == 'Paquete']
+        servicios = [d for d in datos if d.get('tipo') == 'Servicio']
+        
+        # Convertir a formato esperado
+        paquetes_formateados = []
+        for p in paquetes:
+            paquetes_formateados.append({
+                'paquete__nombre': p.get('nombre', 'N/A'),
+                'paquete__categoria__nombre': p.get('categoria', 'N/A'),
+                'paquete__departamento': p.get('departamento', 'N/A'),
+                'paquete__precio_base': p.get('precio', 0),
+                'paquete__precio_base_usd': p.get('precio', 0),
+                'paquete__precio_base_bob': p.get('precio', 0) * 6.96,
+                'cantidad_vendida': p.get('num_ventas', 0),
+                'ventas_totales_usd': p.get('total_ventas_usd', 0),
+                'ventas_totales_bob': p.get('total_ventas_bob', 0),
+                'tasa_conversion': p.get('tasa_conversion', 0)
+            })
+        
+        servicios_formateados = []
+        for s in servicios:
+            servicios_formateados.append({
+                'servicio__titulo': s.get('nombre', 'N/A'),
+                'servicio__categoria__nombre': s.get('categoria', 'N/A'),
+                'servicio__departamento': s.get('departamento', 'N/A'),
+                'servicio__precio_usd': s.get('precio', 0),
+                'servicio__precio_bob': s.get('precio', 0) * 6.96,
+                'cantidad_vendida': s.get('num_ventas', 0),
+                'ventas_totales_usd': s.get('total_ventas_usd', 0),
+                'ventas_totales_bob': s.get('total_ventas_bob', 0),
+                'tasa_conversion': s.get('tasa_conversion', 0)
+            })
+        
+        reporte_data = {
+            'paquetes': paquetes_formateados,
+            'servicios': servicios_formateados,
+            'filtros_aplicados': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+        return exportador.generar_reporte_productos(reporte_data)
+    
+    elif tipo_reporte == 'ventas':
+        # Calcular métricas desde datos simples
+        total_ventas = sum(d.get('monto', 0) for d in datos)
+        cantidad_reservas = len(datos)
+        ticket_promedio = total_ventas / cantidad_reservas if cantidad_reservas > 0 else 0
+        
+        reporte_data = {
+            'metricas_generales': {
+                'total_ventas': total_ventas,
+                'cantidad_reservas': cantidad_reservas,
+                'ticket_promedio': ticket_promedio,
+                'total_pagado': total_ventas
+            },
+            'periodo': {
+                'fecha_inicio': filtros.get('fecha_inicio'),
+                'fecha_fin': filtros.get('fecha_fin')
+            },
+            'ventas': datos,
+            'filtros_aplicados': filtros,
+            'total_registros': len(datos)
+        }
+        return exportador.generar_reporte_ventas_general(reporte_data)
+    
+    elif tipo_reporte == 'clientes':
+        # Obtener moneda de filtros
+        moneda = filtros.get('moneda', 'USD').upper()
+        
+        # Preparar clientes con moneda correcta
+        clientes_formateados = []
+        for cliente in datos:
+            if moneda == 'BOB':
+                total_gastado = cliente.get('total_gastado_bob', 0)
+            else:
+                total_gastado = cliente.get('total_gastado_usd', 0)
+            
+            clientes_formateados.append({
+                'cliente__nombre': cliente.get('nombre', 'N/A'),
+                'cliente__user__email': cliente.get('email', 'N/A'),
+                'total_gastado': total_gastado,
+                'cantidad_reservas': cliente.get('num_reservas', 0),
+                'ticket_promedio': total_gastado / cliente.get('num_reservas', 1) if cliente.get('num_reservas', 0) > 0 else 0,
+                'tipo_cliente': cliente.get('tipo', 'N/A')
+            })
+        
+        reporte_data = {
+            'clientes': clientes_formateados,
+            'cantidad_clientes': len(datos),
+            'filtros_aplicados': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+        return exportador.generar_reporte_clientes(reporte_data)
+    
+    else:
+        reporte_data = {
+            'datos': datos,
+            'filtros': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
+        }
+        return exportador.generar_reporte_ventas_general(reporte_data)
+
+
+def exportar_reporte_docx(datos, tipo_reporte, filtros):
+    """
+    Función wrapper para generar reportes en Word (DOCX).
+    
+    Args:
+        datos: Lista de diccionarios con los datos
+        tipo_reporte: 'ventas', 'clientes' o 'productos'
+        filtros: Diccionario con filtros aplicados
+    
+    Returns:
+        BytesIO con el DOCX generado
+    """
+    exportador = ExportadorReportesWord()
+    
+    # Preparar estructura de datos
+    if tipo_reporte == 'productos':
+        # Obtener moneda de filtros
+        moneda = filtros.get('moneda', 'USD').upper()
+        
+        # Calcular resumen según moneda
+        total_productos = len(datos)
+        if moneda == 'USD':
+            ventas_totales = sum(d.get('total_ventas_usd', 0) for d in datos)
+            simbolo_moneda = '$'
+        elif moneda == 'BOB':
+            ventas_totales = sum(d.get('total_ventas_bob', 0) for d in datos)
+            simbolo_moneda = 'Bs.'
+        else:  # AMBAS
+            ventas_totales = sum(d.get('total_ventas_usd', 0) for d in datos)
+            simbolo_moneda = '$'
+        
+        productos_ordenados = sorted(datos, key=lambda x: x.get('total_ventas_usd', 0), reverse=True)
+        producto_mas_vendido = productos_ordenados[0].get('nombre', 'N/A') if productos_ordenados else 'N/A'
+        
+        datos_reporte = {
+            'tipo': tipo_reporte,
+            'productos': datos,  # WORD accede con nombres simples
+            'resumen': {
+                'total_productos': total_productos,
+                'ventas_totales': ventas_totales,
+                'producto_mas_vendido': producto_mas_vendido,
+                'simbolo_moneda': simbolo_moneda,
+                'moneda': moneda
+            },
+            'filtros': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'titulo': f'Reporte de {tipo_reporte.title()}',
+            'periodo': {
+                'inicio': filtros.get('fecha_inicio', 'N/A'),
+                'fin': filtros.get('fecha_fin', 'N/A')
+            }
+        }
+        return exportador.generar_reporte_productos(datos_reporte)
+    
+    elif tipo_reporte == 'ventas':
+        # Calcular resumen de ventas
+        total_ventas = sum(venta.get('monto', 0) for venta in datos)
+        total_transacciones = len(datos)
+        ticket_promedio = total_ventas / total_transacciones if total_transacciones > 0 else 0
+        
+        # Obtener moneda
+        moneda = filtros.get('moneda', 'BOB').upper()
+        simbolo_moneda = 'Bs.' if moneda == 'BOB' else '$'
+        
+        datos_reporte = {
+            'tipo': tipo_reporte,
+            'ventas': datos,  # El generador espera 'ventas', no 'datos'
+            'resumen': {
+                'total_ventas': total_ventas,
+                'total_transacciones': total_transacciones,
+                'ticket_promedio': ticket_promedio,
+                'simbolo_moneda': simbolo_moneda
+            },
+            'filtros': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'titulo': 'Reporte de Ventas',
+            'periodo': {
+                'inicio': filtros.get('fecha_inicio', 'N/A'),
+                'fin': filtros.get('fecha_fin', 'N/A')
+            }
+        }
+        return exportador.generar_reporte_ventas(datos_reporte)
+    
+    elif tipo_reporte == 'clientes':
+        # Obtener moneda de filtros
+        moneda = filtros.get('moneda', 'USD').upper()
+        
+        # Preparar clientes con moneda correcta
+        clientes_formateados = []
+        total_gastado_global = 0
+        total_reservas_global = 0
+        
+        for cliente in datos:
+            if moneda == 'BOB':
+                total_gastado = cliente.get('total_gastado_bob', 0)
+            else:
+                total_gastado = cliente.get('total_gastado_usd', 0)
+            
+            num_reservas = cliente.get('num_reservas', 0)
+            total_gastado_global += total_gastado
+            total_reservas_global += num_reservas
+            
+            clientes_formateados.append({
+                'cliente__nombre': cliente.get('nombre', 'N/A'),
+                'cliente__user__email': cliente.get('email', 'N/A'),
+                'total_gastado': total_gastado,
+                'cantidad_reservas': num_reservas,
+                'ticket_promedio': total_gastado / num_reservas if num_reservas > 0 else 0,
+                'tipo_cliente': cliente.get('tipo', 'N/A')
+            })
+        
+        # Calcular resumen
+        total_clientes = len(datos)
+        promedio_por_cliente = total_gastado_global / total_clientes if total_clientes > 0 else 0
+        
+        datos_reporte = {
+            'tipo': tipo_reporte,
+            'clientes': clientes_formateados,
+            'resumen': {
+                'total_clientes': total_clientes,
+                'total_reservas': total_reservas_global,
+                'ingresos_totales': total_gastado_global,
+                'promedio_por_cliente': promedio_por_cliente
+            },
+            'cantidad_clientes': total_clientes,
+            'filtros': filtros,
+            'total_registros': total_clientes,
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'titulo': 'Reporte de Clientes',
+            'periodo': {
+                'inicio': filtros.get('fecha_inicio', 'N/A'),
+                'fin': filtros.get('fecha_fin', 'N/A')
+            }
+        }
+        return exportador.generar_reporte_clientes(datos_reporte)
+    
+    else:
+        datos_reporte = {
+            'tipo': tipo_reporte,
+            'datos': datos,
+            'filtros': filtros,
+            'total_registros': len(datos),
+            'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'titulo': f'Reporte de {tipo_reporte.title()}',
+            'periodo': {
+                'inicio': filtros.get('fecha_inicio', 'N/A'),
+                'fin': filtros.get('fecha_fin', 'N/A')
+            }
+        }
+        return exportador.generar_reporte_ventas(datos_reporte)
+
+
