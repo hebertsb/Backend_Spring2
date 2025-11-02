@@ -1146,6 +1146,8 @@ class CampanaNotificacionViewSet(viewsets.ModelViewSet):
                 'total_destinatarios': total,
             },
             'destinatarios_preview': destinatarios_preview,
+            # ↓ Agregar a nivel raíz para compatibilidad con frontend
+            'total_destinatarios': total,
         })
     
     @action(detail=True, methods=['post'])
