@@ -961,4 +961,267 @@ class BitacoraViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 
-# ProveedorViewSet, SuscripcionViewSet y CampanaNotificacionViewSet eliminados - modelos eliminados en migración 0009
+# ============================================
+# 📱 DISPOSITIVOS FCM
+# ============================================
+from .models import FCMDevice, CampanaNotificacion
+from .serializer import FCMDeviceSerializer, CampanaNotificacionSerializer
+
+class FCMDeviceViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de dispositivos FCM.
+    Permite registro y actualización de tokens desde la app móvil.
+    """
+    queryset = FCMDevice.objects.all()
+    serializer_class = FCMDeviceSerializer
+    
+    def get_permissions(self):
+        """
+        - Registrar dispositivo: Permite sin autenticación (AllowAny)
+        - Otras acciones: Requiere autenticación
+        """
+        if self.action == 'registrar':
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+    
+    def get_queryset(self):
+        """Usuarios normales solo ven sus propios dispositivos."""
+        user = self.request.user
+        if user.is_staff or (hasattr(user, 'perfil') and user.perfil.rol and user.perfil.rol.nombre.lower() in ['admin', 'administrador', 'soporte']):
+            return FCMDevice.objects.all()
+        
+        if hasattr(user, 'perfil') and user.perfil:
+            return FCMDevice.objects.filter(usuario=user.perfil)
+        
+        return FCMDevice.objects.none()
+    
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def registrar(self, request):
+        """
+        Registra o actualiza un dispositivo FCM.
+        
+        POST /api/fcm-dispositivos/registrar/
+        Body:
+        {
+            "registration_id": "token_fcm_del_dispositivo",
+            "tipo_dispositivo": "android",  # opcional
+            "nombre": "Mi Celular"  # opcional
+        }
+        
+        Retorna:
+        - 201: Dispositivo creado
+        - 200: Dispositivo actualizado
+        """
+        registration_id = request.data.get('registration_id')
+        
+        if not registration_id:
+            return Response(
+                {'error': 'registration_id es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener usuario autenticado (si existe)
+        perfil = None
+        if request.user.is_authenticated:
+            perfil = getattr(request.user, 'perfil', None)
+        
+        if not perfil:
+            return Response(
+                {'error': 'Usuario no autenticado o sin perfil'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Buscar o crear dispositivo
+        dispositivo, created = FCMDevice.objects.update_or_create(
+            registration_id=registration_id,
+            defaults={
+                'usuario': perfil,
+                'tipo_dispositivo': request.data.get('tipo_dispositivo', 'android'),
+                'nombre': request.data.get('nombre', ''),
+                'activo': True
+            }
+        )
+        
+        serializer = FCMDeviceSerializer(dispositivo)
+        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        
+        return Response({
+            'mensaje': 'Dispositivo registrado exitosamente' if created else 'Dispositivo actualizado',
+            'dispositivo': serializer.data
+        }, status=status_code)
+    
+    @action(detail=True, methods=['post'])
+    def desactivar(self, request, pk=None):
+        """
+        Desactiva un dispositivo (dejar de recibir notificaciones).
+        
+        POST /api/fcm-dispositivos/{id}/desactivar/
+        """
+        dispositivo = self.get_object()
+        dispositivo.activo = False
+        dispositivo.save(update_fields=['activo'])
+        
+        return Response({
+            'mensaje': 'Dispositivo desactivado',
+            'dispositivo_id': dispositivo.id
+        })
+    
+    @action(detail=True, methods=['post'])
+    def activar(self, request, pk=None):
+        """
+        Activa un dispositivo.
+        
+        POST /api/fcm-dispositivos/{id}/activar/
+        """
+        dispositivo = self.get_object()
+        dispositivo.activo = True
+        dispositivo.save(update_fields=['activo'])
+        
+        return Response({
+            'mensaje': 'Dispositivo activado',
+            'dispositivo_id': dispositivo.id
+        })
+
+
+# ============================================
+# 📢 CAMPAÑAS DE NOTIFICACIONES
+# ============================================
+class CampanaNotificacionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión administrativa de campañas de notificaciones push.
+    Solo administradores pueden crear, modificar o ejecutar campañas.
+    """
+    queryset = CampanaNotificacion.objects.all()
+    serializer_class = CampanaNotificacionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['estado', 'tipo_audiencia', 'tipo_notificacion']
+    search_fields = ['nombre', 'titulo', 'descripcion']
+    ordering_fields = ['created_at', 'fecha_programada', 'fecha_enviada']
+    ordering = ['-created_at']
+    
+    def get_permissions(self):
+        """Solo administradores pueden crear, modificar o ejecutar acciones sobre campañas."""
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 
+                          'preview', 'enviar_test', 'activar', 'cancelar']:
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+    
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        """
+        Vista previa de la campaña sin enviar.
+        
+        GET /api/campanas-notificacion/{id}/preview/
+        """
+        campana = self.get_object()
+        
+        usuarios = campana.obtener_usuarios_objetivo()
+        total = usuarios.count()
+        muestra = usuarios[:50]
+        
+        destinatarios_preview = [
+            {
+                'id': u.id,
+                'nombre': u.nombre,
+                'email': u.user.email if hasattr(u, 'user') and u.user else None,
+                'rol': u.rol.nombre if u.rol else None,
+            }
+            for u in muestra
+        ]
+        
+        return Response({
+            'campana': {
+                'id': campana.id,
+                'nombre': campana.nombre,
+                'estado': campana.estado,
+            },
+            'contenido': {
+                'titulo': campana.titulo,
+                'cuerpo': campana.cuerpo,
+                'tipo_notificacion': campana.tipo_notificacion,
+            },
+            'segmentacion': {
+                'tipo_audiencia': campana.tipo_audiencia,
+                'total_destinatarios': total,
+            },
+            'destinatarios_preview': destinatarios_preview,
+        })
+    
+    @action(detail=True, methods=['post'])
+    def activar(self, request, pk=None):
+        """
+        Activa la campaña para envío inmediato o programado.
+        
+        POST /api/campanas-notificacion/{id}/activar/
+        """
+        from .tasks import ejecutar_campana_notificacion
+        
+        campana = self.get_object()
+        
+        if not campana.puede_activarse():
+            return Response(
+                {'error': f'No se puede activar una campaña en estado {campana.get_estado_display()}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        total_destinatarios = campana.calcular_destinatarios()
+        
+        if total_destinatarios == 0:
+            return Response(
+                {'error': 'La campaña no tiene destinatarios'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        perfil = getattr(request.user, 'perfil', None)
+        ejecutor_id = perfil.id if perfil else None
+        
+        if campana.enviar_inmediatamente or not campana.fecha_programada:
+            # Envío inmediato
+            resultado = ejecutar_campana_notificacion(campana.id, ejecutor_id)
+            
+            if resultado['success']:
+                return Response({
+                    'mensaje': 'Campaña ejecutada inmediatamente',
+                    'estado': 'COMPLETADA',
+                    'resultado': resultado
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Error al ejecutar la campaña',
+                    'resultado': resultado
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # Programar
+            campana.estado = 'PROGRAMADA'
+            campana.save(update_fields=['estado'])
+            
+            return Response({
+                'mensaje': 'Campaña programada exitosamente',
+                'estado': 'PROGRAMADA',
+                'fecha_programada': campana.fecha_programada,
+                'total_destinatarios': total_destinatarios
+            }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def cancelar(self, request, pk=None):
+        """
+        Cancela una campaña en estado BORRADOR o PROGRAMADA.
+        
+        POST /api/campanas-notificacion/{id}/cancelar/
+        """
+        campana = self.get_object()
+        
+        if not campana.puede_cancelarse():
+            return Response(
+                {'error': f'No se puede cancelar una campaña en estado {campana.get_estado_display()}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        campana.estado = 'CANCELADA'
+        campana.save(update_fields=['estado'])
+        
+        return Response({
+            'mensaje': 'Campaña cancelada exitosamente',
+            'estado': 'CANCELADA'
+        }, status=status.HTTP_200_OK)
