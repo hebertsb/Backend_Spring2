@@ -12,10 +12,15 @@ logger = logging.getLogger(__name__)
 
 # Importar señales FCM condicionalmente para evitar envíos automáticos por defecto.
 # La variable de entorno en español 'HABILITAR_SEÑAL_FCM' controla esto.
-if os.getenv('HABILITAR_SEÑAL_FCM', '').lower() in ('1', 'true', 'si', 'yes'):
+fcm_var = os.getenv('HABILITAR_SEÑAL_FCM', '').strip().strip('"').strip("'").lower()
+logger.info(f'🔍 Verificando HABILITAR_SEÑAL_FCM: valor="{fcm_var}" (original: "{os.getenv("HABILITAR_SEÑAL_FCM", "")}")')
+
+if fcm_var in ('1', 'true', 'si', 'yes'):
 	try:
 		import condominio.signals_fcm  # noqa: F401
-		logger.info('⚙️ Señales FCM activadas (HABILITAR_SEÑAL_FCM=1)')
+		logger.info(f'⚙️ Señales FCM activadas (HABILITAR_SEÑAL_FCM={fcm_var})')
 	except Exception as e:
 		logger.exception('⚠️ No se pudo activar condominio.signals_fcm: %s', e)
+else:
+	logger.warning(f'⚠️ Señales FCM NO activadas. HABILITAR_SEÑAL_FCM="{fcm_var}" (se esperaba: true, 1, si o yes)')
 
