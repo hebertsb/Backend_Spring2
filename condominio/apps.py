@@ -13,6 +13,9 @@ class CondominioConfig(AppConfig):
         
         # Iniciar el programador de backups automáticos (SOLO UNA VEZ)
         self.start_automatic_backups()
+        
+        # Iniciar el programador de campañas programadas
+        self.start_campaign_scheduler()
 
     def initialize_firebase(self):
         """
@@ -48,3 +51,17 @@ class CondominioConfig(AppConfig):
                     print("🎯 APPS.PY - Scheduler iniciado")
                 except Exception as e:
                     print(f"🎯 APPS.PY - Error: {e}")
+
+    def start_campaign_scheduler(self):
+        """
+        Inicia el programador de campañas programadas una sola vez
+        """
+        if not hasattr(self, '_campaign_scheduler_started'):
+            self._campaign_scheduler_started = True
+            
+            try:
+                from condominio.scheduler_campanas import start_campaign_scheduler
+                start_campaign_scheduler()
+            except Exception as e:
+                print(f"⚠️ Error al iniciar scheduler de campañas: {e}")
+                print("   Las campañas programadas NO se ejecutarán automáticamente.")
