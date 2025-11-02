@@ -8,9 +8,12 @@ echo "📦 Recolectando archivos estáticos..."
 python manage.py collectstatic --noinput --clear
 
 echo "🤖 Iniciando scheduler de campañas en background..."
-python manage.py run_campaign_scheduler &
+python -u manage.py run_campaign_scheduler 2>&1 &
 SCHEDULER_PID=$!
 echo "✅ Scheduler iniciado con PID: $SCHEDULER_PID"
+sleep 2
+echo "🔍 Verificando que el scheduler esté corriendo..."
+ps aux | grep run_campaign_scheduler | grep -v grep || echo "⚠️ Scheduler NO encontrado en procesos"
 
 echo "🚀 Iniciando servidor Gunicorn..."
 gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
