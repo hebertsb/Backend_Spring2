@@ -8,7 +8,7 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet,
-    PerfilUsuarioViewSet, SoportePanelViewSet,ProveedorViewSet
+    PerfilUsuarioViewSet, SoportePanelViewSet, ProveedorViewSet, CampanaNotificacionViewSet
 )
 from .api import BitacoraViewSet
 from .api_fcm import FCMDeviceViewSet
@@ -39,6 +39,7 @@ router.register(r'perfil', PerfilUsuarioViewSet, basename='perfil')
 router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
 router.register(r'proveedor', ProveedorViewSet, basename='proveedor')
 router.register(r'suscripciones', SuscripcionViewSet, basename='suscripcion')
+router.register(r'campanas-notificacion', CampanaNotificacionViewSet, basename='campana-notificacion')
 
 urlpatterns = router.urls + [
      path('backups/', include('condominio.backups.urls')),

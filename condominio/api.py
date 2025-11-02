@@ -1,4 +1,6 @@
-from rest_framework import viewsets, permissions, filters, serializers
+from rest_framework import viewsets, permissions, filters, serializers, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
@@ -87,7 +89,7 @@ from .serializer import (
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
     HistorialReprogramacionSerializer, ConfiguracionGlobalReprogramacionSerializer,
     ReprogramacionSerializer, PaqueteCompletoSerializer, PaqueteSerializer, PerfilUsuarioSerializer,
-    SoporteResumenSerializer
+    SoporteResumenSerializer, CampanaNotificacionSerializer
 )
 from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
 from .serializer import BitacoraSerializer
@@ -920,3 +922,344 @@ class SuscripcionViewSet(viewsets.ModelViewSet):
     queryset = Suscripcion.objects.all()
     serializer_class = SuscripcionSerializer
     permission_classes = [permissions.AllowAny]
+
+
+# =====================================================
+# 📢 CAMPAÑA DE NOTIFICACIONES - ViewSet Administrativo
+# =====================================================
+class CampanaNotificacionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión administrativa de campañas de notificaciones push.
+    
+    Funcionalidades:
+    - CRUD completo con permisos de administrador
+    - Preview de destinatarios antes de enviar
+    - Envío de notificación de prueba
+    - Activación de campaña (inmediata o programada)
+    - Cancelación de campañas programadas
+    - Actualización de métricas de lectura
+    
+    Permisos:
+    - Listar/Ver: Usuarios autenticados
+    - Crear/Editar/Eliminar: Solo administradores
+    - Acciones especiales: Solo administradores
+    """
+    queryset = __import__('condominio.models', fromlist=['CampanaNotificacion']).CampanaNotificacion.objects.all()
+    serializer_class = CampanaNotificacionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['estado', 'tipo_audiencia', 'tipo_notificacion']
+    search_fields = ['nombre', 'titulo', 'descripcion']
+    ordering_fields = ['created_at', 'fecha_programada', 'fecha_enviada']
+    ordering = ['-created_at']
+    
+    def get_permissions(self):
+        """
+        Solo administradores pueden crear, modificar o ejecutar acciones sobre campañas.
+        Usuarios normales solo pueden listar/ver (para futuras funcionalidades de reportes).
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 
+                          'preview', 'enviar_test', 'activar', 'cancelar', 'actualizar_metricas']:
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+    
+    def perform_create(self, serializer):
+        """Al crear, registrar en bitácora."""
+        campana = serializer.save()
+        self._registrar_en_bitacora(
+            f'Creó campaña de notificación: {campana.nombre}',
+            f'ID: {campana.id}, Tipo audiencia: {campana.get_tipo_audiencia_display()}'
+        )
+    
+    def perform_update(self, serializer):
+        """Al actualizar, registrar en bitácora."""
+        campana = serializer.save()
+        self._registrar_en_bitacora(
+            f'Actualizó campaña de notificación: {campana.nombre}',
+            f'ID: {campana.id}, Estado: {campana.get_estado_display()}'
+        )
+    
+    def perform_destroy(self, instance):
+        """Solo permitir eliminar si está en BORRADOR."""
+        if instance.estado != 'BORRADOR':
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                f'No se puede eliminar una campaña en estado {instance.get_estado_display()}. '
+                'Solo se pueden eliminar campañas en BORRADOR.'
+            )
+        
+        nombre = instance.nombre
+        instance.delete()
+        self._registrar_en_bitacora(
+            f'Eliminó campaña de notificación: {nombre}',
+            f'Campaña estaba en estado BORRADOR'
+        )
+    
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        """
+        Obtiene vista previa completa de la campaña sin enviar.
+        
+        Retorna:
+        - Contenido de la notificación (título, cuerpo, datos extra)
+        - Lista de destinatarios (primeros 50 para verificación)
+        - Estadísticas de segmentación
+        
+        GET /api/campanas-notificacion/{id}/preview/
+        """
+        campana = self.get_object()
+        
+        # Obtener usuarios objetivo
+        usuarios = campana.obtener_usuarios_objetivo()
+        total = usuarios.count()
+        muestra = usuarios[:50]  # Primeros 50 para preview extendido
+        
+        destinatarios_preview = [
+            {
+                'id': u.id,
+                'nombre': u.nombre,
+                'email': u.user.email if hasattr(u, 'user') else None,
+                'rol': u.rol.nombre if u.rol else None,
+                'telefono': u.telefono,
+                'num_viajes': u.num_viajes,
+            }
+            for u in muestra
+        ]
+        
+        # Estadísticas de segmentación
+        estadisticas = {
+            'total_destinatarios': total,
+            'usuarios_preview': len(destinatarios_preview),
+        }
+        
+        # Si es por segmento, mostrar distribución por rol
+        if campana.tipo_audiencia in ['TODOS', 'SEGMENTO']:
+            from django.db.models import Count
+            distribucion_roles = usuarios.values('rol__nombre').annotate(
+                cantidad=Count('id')
+            ).order_by('-cantidad')
+            estadisticas['distribucion_roles'] = list(distribucion_roles)
+        
+        resultado = {
+            'campana': {
+                'id': campana.id,
+                'nombre': campana.nombre,
+                'descripcion': campana.descripcion,
+                'estado': campana.estado,
+            },
+            'contenido': {
+                'titulo': campana.titulo,
+                'cuerpo': campana.cuerpo,
+                'tipo_notificacion': campana.tipo_notificacion,
+                'datos_extra': campana.datos_extra,
+            },
+            'segmentacion': {
+                'tipo_audiencia': campana.tipo_audiencia,
+                'tipo_audiencia_display': campana.get_tipo_audiencia_display(),
+                'segmento_filtros': campana.segmento_filtros if campana.tipo_audiencia == 'SEGMENTO' else None,
+            },
+            'estadisticas': estadisticas,
+            'destinatarios': destinatarios_preview,
+        }
+        
+        return Response(resultado)
+    
+    @action(detail=True, methods=['post'])
+    def enviar_test(self, request, pk=None):
+        """
+        Envía notificación de prueba al usuario actual (administrador).
+        
+        Permite verificar cómo se verá la notificación en el dispositivo
+        antes de activar la campaña completa.
+        
+        POST /api/campanas-notificacion/{id}/enviar_test/
+        Body (opcional): {"usuario_id": 123}  # Para enviar a otro usuario
+        """
+        from .tasks import enviar_notificacion_test
+        
+        campana = self.get_object()
+        
+        # Obtener usuario destinatario (por defecto el usuario actual)
+        usuario_id_destino = request.data.get('usuario_id')
+        
+        if not usuario_id_destino:
+            # Usar el perfil del usuario actual
+            perfil = getattr(request.user, 'perfil', None)
+            if not perfil:
+                return Response(
+                    {'error': 'No se encontró perfil para el usuario actual'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            usuario_id_destino = perfil.id
+        
+        # Ejecutar envío de prueba
+        resultado = enviar_notificacion_test(campana.id, usuario_id_destino)
+        
+        if resultado['success']:
+            self._registrar_en_bitacora(
+                f'Envió notificación de prueba de campaña: {campana.nombre}',
+                f'Destinatario: Usuario ID {usuario_id_destino}'
+            )
+            return Response(resultado, status=status.HTTP_200_OK)
+        else:
+            return Response(resultado, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def activar(self, request, pk=None):
+        """
+        Activa la campaña para envío inmediato o programado.
+        
+        Proceso:
+        1. Verifica que esté en estado BORRADOR
+        2. Calcula número de destinatarios
+        3. Si enviar_inmediatamente=True: ejecuta inmediatamente
+        4. Si tiene fecha_programada: marca como PROGRAMADA (scheduler la ejecutará)
+        
+        POST /api/campanas-notificacion/{id}/activar/
+        """
+        from .tasks import ejecutar_campana_notificacion
+        
+        campana = self.get_object()
+        
+        # Validar que pueda activarse
+        if not campana.puede_activarse():
+            return Response(
+                {
+                    'error': f'No se puede activar una campaña en estado {campana.get_estado_display()}',
+                    'estado_actual': campana.estado
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Calcular destinatarios antes de activar
+        total_destinatarios = campana.calcular_destinatarios()
+        
+        if total_destinatarios == 0:
+            return Response(
+                {
+                    'error': 'La campaña no tiene destinatarios. Verifique la segmentación.',
+                    'total_destinatarios': 0
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener perfil del usuario que activa
+        perfil = getattr(request.user, 'perfil', None)
+        ejecutor_id = perfil.id if perfil else None
+        
+        # Decidir si enviar inmediatamente o programar
+        if campana.enviar_inmediatamente or not campana.fecha_programada:
+            # Envío inmediato
+            resultado = ejecutar_campana_notificacion(campana.id, ejecutor_id)
+            
+            if resultado['success']:
+                self._registrar_en_bitacora(
+                    f'Activó y ejecutó campaña inmediatamente: {campana.nombre}',
+                    f'Enviados: {resultado["total_enviados"]}, Errores: {resultado["total_errores"]}'
+                )
+                return Response({
+                    'mensaje': 'Campaña ejecutada inmediatamente',
+                    'estado': 'COMPLETADA',
+                    'resultado': resultado
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Error al ejecutar la campaña',
+                    'resultado': resultado
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # Programar para después
+            campana.estado = 'PROGRAMADA'
+            campana.save(update_fields=['estado'])
+            
+            self._registrar_en_bitacora(
+                f'Programó campaña para envío: {campana.nombre}',
+                f'Fecha programada: {campana.fecha_programada}, Destinatarios: {total_destinatarios}'
+            )
+            
+            return Response({
+                'mensaje': 'Campaña programada exitosamente',
+                'estado': 'PROGRAMADA',
+                'fecha_programada': campana.fecha_programada,
+                'total_destinatarios': total_destinatarios
+            }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def cancelar(self, request, pk=None):
+        """
+        Cancela una campaña en estado BORRADOR o PROGRAMADA.
+        
+        Las campañas EN_CURSO o COMPLETADAS no pueden cancelarse.
+        
+        POST /api/campanas-notificacion/{id}/cancelar/
+        """
+        campana = self.get_object()
+        
+        if not campana.puede_cancelarse():
+            return Response(
+                {
+                    'error': f'No se puede cancelar una campaña en estado {campana.get_estado_display()}',
+                    'estado_actual': campana.estado
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        estado_anterior = campana.get_estado_display()
+        campana.estado = 'CANCELADA'
+        campana.save(update_fields=['estado'])
+        
+        self._registrar_en_bitacora(
+            f'Canceló campaña: {campana.nombre}',
+            f'Estado anterior: {estado_anterior}'
+        )
+        
+        return Response({
+            'mensaje': 'Campaña cancelada exitosamente',
+            'estado': 'CANCELADA'
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def actualizar_metricas(self, request, pk=None):
+        """
+        Recalcula las métricas de lectura de una campaña completada.
+        
+        Útil para obtener estadísticas actualizadas de cuántas notificaciones
+        fueron leídas después del envío.
+        
+        POST /api/campanas-notificacion/{id}/actualizar_metricas/
+        """
+        from .tasks import calcular_metricas_campana
+        
+        campana = self.get_object()
+        resultado = calcular_metricas_campana(campana.id)
+        
+        if resultado['success']:
+            return Response(resultado, status=status.HTTP_200_OK)
+        else:
+            return Response(resultado, status=status.HTTP_400_BAD_REQUEST)
+    
+    def _registrar_en_bitacora(self, accion, descripcion):
+        """Helper para registrar acciones en la bitácora."""
+        try:
+            from .models import Bitacora
+            perfil = getattr(self.request.user, 'perfil', None)
+            ip = self._obtener_ip_cliente()
+            
+            Bitacora.objects.create(
+                usuario=perfil,
+                accion=accion,
+                descripcion=descripcion,
+                ip_address=ip
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.exception(f'Error registrando en bitácora: {e}')
+    
+    def _obtener_ip_cliente(self):
+        """Obtiene la IP del cliente desde el request."""
+        x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = self.request.META.get('REMOTE_ADDR')
+        return ip

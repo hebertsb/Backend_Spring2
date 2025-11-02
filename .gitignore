@@ -114,6 +114,10 @@ Desktop.ini
 *.bak
 *.backup
 
+# Archivos de backup (no subir)
+condominio/backups/*.zip
+*.zip
+
 # Ignore all .txt files except requirements.txt (so only requirements.txt gets pushed)
 *.txt
 !requirements.txt
