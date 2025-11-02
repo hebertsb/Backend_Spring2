@@ -141,6 +141,62 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             'rol': None,
         }
         return Response(fallback)
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def con_fcm(self, request):
+        """
+        Lista usuarios que tienen tokens FCM activos registrados.
+        
+        GET /api/usuarios/con_fcm/
+        
+        Query params opcionales:
+        - rol: Filtrar por rol (ej: ?rol=Cliente)
+        - search: Buscar por nombre (ej: ?search=Luis)
+        
+        Retorna:
+        - Lista de usuarios con al menos un dispositivo FCM activo
+        - Incluye: id, nombre, email, rol, num_viajes, total_dispositivos_fcm
+        """
+        from django.db.models import Count, Q
+        
+        # Usuarios con al menos un dispositivo FCM activo
+        usuarios = Usuario.objects.filter(
+            user__is_active=True,
+            dispositivos_fcm__activo=True
+        ).distinct().annotate(
+            total_dispositivos_fcm=Count('dispositivos_fcm', filter=Q(dispositivos_fcm__activo=True))
+        )
+        
+        # Filtros opcionales
+        rol = request.query_params.get('rol')
+        if rol:
+            usuarios = usuarios.filter(rol__nombre=rol)
+        
+        search = request.query_params.get('search')
+        if search:
+            usuarios = usuarios.filter(nombre__icontains=search)
+        
+        # Ordenar por nombre
+        usuarios = usuarios.order_by('nombre')
+        
+        # Serializar respuesta
+        data = [
+            {
+                'id': u.id,
+                'nombre': u.nombre,
+                'email': u.user.email if hasattr(u, 'user') and u.user else None,
+                'rol': u.rol.nombre if u.rol else None,
+                'telefono': u.telefono,
+                'num_viajes': u.num_viajes,
+                'total_dispositivos_fcm': u.total_dispositivos_fcm,
+            }
+            for u in usuarios
+        ]
+        
+        return Response({
+            'count': len(data),
+            'usuarios': data
+        })
 
 
 # =====================================================
