@@ -14,8 +14,8 @@ class CondominioConfig(AppConfig):
         # Iniciar el programador de backups automáticos (SOLO UNA VEZ)
         self.start_automatic_backups()
         
-        # ⚠️ DESHABILITADO: El scheduler de campañas ahora se ejecuta en start_server.py
-        # self.start_campaign_scheduler()
+        # Iniciar el scheduler de campañas (con verificación para evitar duplicados)
+        self.start_campaign_scheduler()
 
     def initialize_firebase(self):
         """
@@ -55,9 +55,19 @@ class CondominioConfig(AppConfig):
     def start_campaign_scheduler(self):
         """
         Inicia el programador de campañas programadas una sola vez
+        SOLO en el proceso principal (no en workers de Gunicorn)
         """
         if not hasattr(self, '_campaign_scheduler_started'):
             self._campaign_scheduler_started = True
+            
+            import os
+            # Solo ejecutar en el proceso principal (PID bajo o variable de entorno específica)
+            worker_id = os.environ.get('GUNICORN_WORKER_ID')
+            
+            if worker_id:
+                # Estamos en un worker de Gunicorn, no iniciar scheduler
+                print(f"⏸️ Worker {worker_id}: Scheduler NO iniciado (solo corre en proceso principal)")
+                return
             
             try:
                 from condominio.scheduler_campanas import start_campaign_scheduler
