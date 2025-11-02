@@ -43,6 +43,11 @@ def run_scheduler():
         sys.stdout.flush()
 
 if __name__ == '__main__':
+    print("=" * 60, flush=True)
+    print("🚀 [START_SERVER.PY] INICIANDO...", flush=True)
+    print("=" * 60, flush=True)
+    sys.stdout.flush()
+    
     print("✅ Iniciando sistema...", flush=True)
     sys.stdout.flush()
     

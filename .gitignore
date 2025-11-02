@@ -43,6 +43,26 @@ tmp_debug_post_ticket.py
 # Carpeta de pagos (guías y docs locales)
 pagos/
 
+# ======================================
+# 📚 DOCUMENTACIÓN Y GUÍAS (NO SUBIR)
+# ======================================
+# Archivos Markdown de documentación
+*.md
+!README.md
+# Archivos de texto
+*.txt
+!requirements.txt
+# Archivos de análisis y guías
+ANALISIS_*.md
+GUIA_*.md
+RESUMEN_*.md
+flujo_*.txt
+
+# Archivos HTML de prueba
+test_frontend_reportes.html
+test_*.html
+*_test.html
+
 # Media files (archivos subidos)
 media/
 soporte/
