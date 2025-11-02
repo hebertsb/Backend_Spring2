@@ -112,7 +112,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # ----------------------------------------------------------------------------------
-# � CONFIGURACIÓN DE BASE DE DATOS - MODO PRODUCCIÓN (PostgreSQL/Railway)
+# CONFIGURACIÓN DE BASE DE DATOS - MODO PRODUCCIÓN (PostgreSQL/Railway)
 # SQLite comentado para usar base de datos de producción
 # ----------------------------------------------------------------------------------
 
@@ -124,6 +124,21 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # #          'NAME': BASE_DIR / 'db.sqlite3',
 # #      }
 # # }
+
+# Configuración simplificada para PostgreSQL/Railway
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+    }
+else:
+    # Fallback a SQLite para desarrollo local
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # --------------------------------------------------------------------------------------------------
@@ -250,6 +265,12 @@ USE_TZ = True  # Mantener True para que Django maneje timezones correctamente
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Directorio donde collectstatic recopila archivos estáticos para producción
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Configuración de WhiteNoise para servir archivos estáticos comprimidos
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
