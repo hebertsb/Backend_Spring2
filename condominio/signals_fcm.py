@@ -25,24 +25,27 @@ def notificacion_post_save_fcm(sender, instance, created, **kwargs):
         for d in dispositivos:
             tokens.append({'token': d.registration_id, 'tipo': d.tipo_dispositivo})
         if not tokens:
+            logger.warning(f'Usuario {instance.usuario.id} ({instance.usuario.nombre}) no tiene dispositivos FCM activos')
             return
 
         # Preparar contenido de la notificación
-        titulo = 'Nueva notificación'
+        titulo = 'Nueva notificación'  # Default
         cuerpo = None
         datos_extra = {'notificacion_id': str(instance.id)}
 
         # Si en `datos` hay un campo `mensaje`, usarlo
         if isinstance(instance.datos, dict):
+            # ✅ CORRECCIÓN: Usar título de la campaña si existe
+            titulo = instance.datos.get('titulo', titulo)
             cuerpo = instance.datos.get('mensaje') or instance.datos.get('body')
             # exportar el objeto datos como string si existe
             datos_extra.update({k: str(v) for k, v in instance.datos.items()})
 
         if not cuerpo:
-            cuerpo = instance.tipo
+            cuerpo = f'Tienes una notificación de tipo: {instance.tipo}'
 
         # Enviar
         resp = enviar_tokens_push(tokens, titulo, cuerpo, datos_extra)
-        logger.info('FCM send result for Notificacion %s: %s', instance.id, resp)
+        logger.info(f'✅ FCM enviado para Notificacion {instance.id} (Usuario: {instance.usuario.nombre}): {resp}')
     except Exception as e:
-        logger.exception('Error al enviar FCM para Notificacion %s: %s', instance.id, e)
+        logger.exception(f'❌ Error al enviar FCM para Notificacion {instance.id}: {e}')
