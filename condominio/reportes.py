@@ -509,7 +509,7 @@ class GeneradorReportes:
         
         # Agrupado por cliente
         clientes_data = (
-            reservas.values('cliente__id', 'cliente__nombre', 'cliente__telefono')
+            reservas.values('cliente__id', 'cliente__nombre', 'cliente__user__email')
             .annotate(
                 total_gastado=Sum('total'),
                 cantidad_reservas=Count('id'),
