@@ -8,8 +8,27 @@ class CondominioConfig(AppConfig):
         # Importar y registrar señales
         import condominio.signals
         
+        # Inicializar Firebase al arrancar Django
+        self.initialize_firebase()
+        
         # Iniciar el programador de backups automáticos (SOLO UNA VEZ)
         self.start_automatic_backups()
+
+    def initialize_firebase(self):
+        """
+        Inicializa Firebase Admin SDK al arrancar Django.
+        Solo se ejecuta una vez usando un flag.
+        """
+        if not hasattr(self, '_firebase_initialized'):
+            self._firebase_initialized = True
+            
+            try:
+                from core.firebase import iniciar_firebase
+                app = iniciar_firebase()
+                print(f"✅ Firebase Admin inicializado correctamente: {app.name}")
+            except Exception as e:
+                print(f"⚠️ Error al inicializar Firebase: {e}")
+                print("   Las notificaciones push NO funcionarán hasta que se configure correctamente.")
 
     def start_automatic_backups(self):  # ✅ DENTRO de la clase
         """
