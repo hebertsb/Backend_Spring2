@@ -250,3 +250,24 @@ def restaurar_desde_dropbox(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+####descargas 
+@api_view(['GET'])
+def descargar_desde_dropbox(request, filename):
+    """
+    GET /api/backups/dropbox/descargar/nombre_backup.zip
+    """
+    try:
+        from .upload_dropbox import get_dropbox_share_link
+        
+        download_link = get_dropbox_share_link(filename)
+        
+        if not download_link:
+            return JsonResponse({'error': f'Backup no encontrado: {filename}'}, status=404)
+        
+        # Redirigir directamente a Dropbox
+        from django.http import HttpResponseRedirect
+        return HttpResponseRedirect(download_link)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
