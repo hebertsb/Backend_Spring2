@@ -7,7 +7,8 @@ from datetime import datetime
 import zipfile
 from pathlib import Path
 import traceback
-
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import permission_classes
 # Importaciones de módulos internos
 from .utils import BACKUP_DIR
 from .restore_backup import restore_backup
@@ -271,3 +272,56 @@ def descargar_desde_dropbox(request, filename):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+
+###metodo de emergencia sin base
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Sin autenticación normal
+def restaurar_base_emergencia(request):
+    """
+    EMERGENCIA: Restaura solo la base de datos cuando se borró toda la base
+    No requiere autenticación JWT (usa token de emergencia)
+    """
+    emergency_token = request.data.get('emergency_token')
+    expected_token = os.environ.get('EMERGENCY_RESTORE_TOKEN')
+    
+    # Validar token de emergencia
+    if not emergency_token or emergency_token != expected_token:
+        return JsonResponse(
+            {'error': 'Token de emergencia inválido'}, 
+            status=403
+        )
+    
+    filename = request.data.get('filename')
+    if not filename:
+        return JsonResponse(
+            {'error': 'Debe especificar el nombre del backup'}, 
+            status=400
+        )
+    
+    try:
+        # Descargar backup desde Dropbox
+        from .upload_dropbox import download_from_dropbox
+        local_path = download_from_dropbox(filename, BACKUP_DIR)
+        
+        # Restaurar SOLO la base de datos (sin tocar código)
+        result = restore_backup(
+            backup_zip_path=Path(local_path),
+            restore_code=False,    # NO restaurar código
+            restore_db=True        # SÍ restaurar base de datos
+        )
+        
+        # Limpiar archivo temporal
+        if Path(local_path).exists():
+            os.remove(local_path)
+        
+        return JsonResponse({
+            'message': f'✅ Base de datos restaurada exitosamente desde: {filename}',
+            'backup_used': filename,
+            'result': result
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error en restauración de emergencia: {str(e)}'
+        }, status=500)
