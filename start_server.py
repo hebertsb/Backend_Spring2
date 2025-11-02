@@ -10,7 +10,9 @@ from multiprocessing import Process
 
 def run_gunicorn():
     """Ejecutar Gunicorn"""
-    os.execvp('gunicorn', ['gunicorn', 'config.wsgi:application'])
+    # Ejecutar gunicorn como subproceso
+    cmd = ['gunicorn', 'config.wsgi:application']
+    subprocess.run(cmd)
 
 def run_scheduler():
     """Ejecutar el scheduler de campañas"""
@@ -43,13 +45,22 @@ if __name__ == '__main__':
     scheduler_process = Process(target=run_scheduler, daemon=False)
     scheduler_process.start()
     
-    print(f"✅ Scheduler iniciado en proceso PID: {scheduler_process.pid}")
-    print(f"🚀 Iniciando Gunicorn...")
+    print(f"✅ Scheduler iniciado en proceso PID: {scheduler_process.pid}", flush=True)
+    print(f"🚀 Iniciando Gunicorn...", flush=True)
     
     # Ejecutar Gunicorn en el proceso principal
+    def handle_signal(signum, frame):
+        print("🛑 Deteniendo servicios...", flush=True)
+        scheduler_process.terminate()
+        scheduler_process.join(timeout=5)
+        sys.exit(0)
+    
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
+    
     try:
         run_gunicorn()
     finally:
         # Asegurar que el scheduler se detenga al salir
         scheduler_process.terminate()
-        scheduler_process.join()
+        scheduler_process.join(timeout=5)

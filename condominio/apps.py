@@ -14,8 +14,8 @@ class CondominioConfig(AppConfig):
         # Iniciar el programador de backups automáticos (SOLO UNA VEZ)
         self.start_automatic_backups()
         
-        # Iniciar el programador de campañas programadas
-        self.start_campaign_scheduler()
+        # ⚠️ DESHABILITADO: El scheduler de campañas ahora se ejecuta en start_server.py
+        # self.start_campaign_scheduler()
 
     def initialize_firebase(self):
         """
