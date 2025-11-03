@@ -143,6 +143,26 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         return Response(fallback)
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def test_auth(self, request):
+        """
+        Endpoint de prueba para validar autenticación.
+        
+        GET /api/usuarios/test_auth/
+        
+        Retorna información del usuario autenticado para debugging.
+        """
+        return Response({
+            'authenticated': True,
+            'user_id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+            'is_staff': request.user.is_staff,
+            'is_active': request.user.is_active,
+            'has_perfil': hasattr(request.user, 'perfil'),
+            'perfil_id': request.user.perfil.id if hasattr(request.user, 'perfil') else None,
+        })
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def con_fcm(self, request):
         """
         Lista usuarios que tienen tokens FCM activos registrados.
@@ -156,6 +176,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         Retorna:
         - Lista de usuarios con al menos un dispositivo FCM activo
         - Incluye: id, nombre, email, rol, num_viajes, total_dispositivos_fcm
+        
+        NOTA: Temporalmente con AllowAny para debug - cambiar a IsAuthenticated después
         """
         from django.db.models import Count, Q
         
