@@ -21,9 +21,6 @@ from .views_reportes import (
     generar_reporte_productos
 )
 
-# 🔔 Importar endpoint temporal de pruebas FCM
-from .views_test_fcm import test_fcm_endpoint
-
 router = routers.DefaultRouter()
 router.register(r'categorias', CategoriaViewSet)
 router.register(r'servicios', ServicioViewSet)
@@ -52,9 +49,6 @@ router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
 
 urlpatterns = router.urls + [
     path('backups/', include('condominio.backups.urls')),
-    
-    # 🔔 [TEMPORAL] Endpoint de prueba FCM - Ejecutar desde navegador
-    path('test-fcm/', test_fcm_endpoint, name='test-fcm'),
     
     # 🎤 CU19: Reportes Avanzados con Comandos de Voz + IA
     path('reportes/ia/procesar/', procesar_comando_ia, name='procesar-comando-ia'),
