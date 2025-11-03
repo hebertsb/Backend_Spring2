@@ -207,13 +207,24 @@ def eliminar_backup(request, filename):
 # ============================================================
 # ☁️ FUNCIONES DE DROPBOX
 # ============================================================
-
 @api_view(['GET'])
 def listar_backups_dropbox(request):
-    """Lista los backups almacenados en Dropbox."""
+    """Lista los backups almacenados en Dropbox (ordenados por fecha descendente)."""
     try:
         files = list_backups_dropbox()
-        return JsonResponse({'backups': files})
+        
+        # ✅ ORDENAR por fecha DESCENDENTE (más reciente primero)
+        files_ordenados = sorted(
+            files, 
+            key=lambda x: x.get('modified', ''), 
+            reverse=True  # ← DESCENDENTE
+        )
+        
+        print(f"🎯 Backups ordenados descendente: {len(files_ordenados)} archivos")
+        if files_ordenados:
+            print(f"🆕 Primer backup (más reciente): {files_ordenados[0]['name']}")
+        
+        return JsonResponse({'backups': files_ordenados})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
