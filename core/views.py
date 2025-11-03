@@ -10,9 +10,35 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from condominio.models import Paquete, Servicio
+from django.core.cache import cache
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 url_frontend = os.getenv("URL_FRONTEND")
+
+@api_view(["GET"])
+def obtener_recomendacion(request):
+    """Obtiene la recomendación generada para una sesión de pago específica."""
+    session_id = request.query_params.get("session_id")
+    if not session_id:
+        return Response(
+            {"error": "Se requiere el parámetro session_id"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Intentar obtener la recomendación del caché
+    cache_key = f"recommendation_{session_id}"
+    recommendation = cache.get(cache_key)
+    
+    if recommendation is None:
+        return Response(
+            {"error": "No se encontró una recomendación para esta sesión"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    return Response({
+        "recommendation": recommendation,
+        "session_id": session_id
+    })
 
 # @permission_classes([IsAuthenticated])
 @api_view(["POST"])
@@ -41,7 +67,10 @@ def crear_checkout_session(request):
             ],
             success_url=f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{url_frontend}/pago-cancelado/",
-            metadata={"usuario_id": str(request.user.id) if request.user.is_authenticated else "anonimo"},
+            metadata={
+                "usuario_id": str(request.user.id) if request.user.is_authenticated else "anonimo",
+                "recommendation_url": f"{request.build_absolute_uri('/api/recomendacion/')}?session_id={{CHECKOUT_SESSION_ID}}"
+            },
         )
 
         return Response({"checkout_url": session.url})
