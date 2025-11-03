@@ -8,10 +8,9 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet,
-    PerfilUsuarioViewSet, SoportePanelViewSet
+    PerfilUsuarioViewSet, SoportePanelViewSet, FCMDeviceViewSet, CampanaNotificacionViewSet
 )
 from .api import BitacoraViewSet
-# from .api_fcm import FCMDeviceViewSet  # Comentado - modelo FCMDevice eliminado en migración 0009
 
 # 🎤📊 Importar endpoints de reportes avanzados (CU19 y CU20)
 from .views_reportes import (
@@ -40,13 +39,13 @@ router.register(r'rol', RolViewSet)
 router.register(r'tickets', TicketViewSet)
 router.register(r'ticket-messages', TicketMessageViewSet)
 router.register(r'notificaciones', NotificacionViewSet)
-# router.register(r'fcm-dispositivos', FCMDeviceViewSet, basename='fcm-dispositivos')  # Comentado - modelo FCMDevice eliminado
+router.register(r'fcm-dispositivos', FCMDeviceViewSet, basename='fcm-dispositivos')
+router.register(r'campanas-notificacion', CampanaNotificacionViewSet, basename='campanas-notificacion')
 router.register(r'historial-reprogramacion', HistorialReprogramacionViewSet)
 router.register(r'configuracion-global-reprogramacion', ConfiguracionGlobalReprogramacionViewSet)
 router.register(r'bitacora', BitacoraViewSet)
 router.register(r'perfil', PerfilUsuarioViewSet, basename='perfil')
 router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
-# ViewSets eliminados: proveedor, suscripciones, campanas-notificacion (modelos eliminados en migración 0009)
 
 urlpatterns = router.urls + [
     path('backups/', include('condominio.backups.urls')),

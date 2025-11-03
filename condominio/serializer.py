@@ -20,6 +20,8 @@ from .models import (
     Reprogramacion,
     ComprobantePago,
     ReservaServicio,
+    FCMDevice,
+    CampanaNotificacion,
     # Proveedor, Suscripcion - MODELOS REMOVIDOS POR MIGRACION 0009
 )
 # =====================================================
@@ -864,166 +866,108 @@ class ComprobantePagoSerializer(serializers.ModelSerializer):
 
 
 # =====================================================
-# 📢 CAMPAÑA DE NOTIFICACIONES (DESHABILITADO)
+# 📱 DISPOSITIVOS FCM
 # =====================================================
-# class CampanaNotificacionSerializer(serializers.ModelSerializer):
-#     """
-#     Serializer para campañas de notificaciones con control administrativo.
-#     Incluye validaciones de negocio y campos calculados para preview.
-#     """
-#     # Campos de solo lectura para mostrar información procesada
-#     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
-#     tipo_audiencia_display = serializers.CharField(source='get_tipo_audiencia_display', read_only=True)
-#     puede_editarse = serializers.BooleanField(read_only=True)
-#     puede_activarse = serializers.BooleanField(read_only=True)
-#     puede_cancelarse = serializers.BooleanField(read_only=True)
-#     
-#     # Información del usuario que envió (si ya fue enviada)
-#     enviado_por_nombre = serializers.CharField(source='enviado_por.nombre', read_only=True, allow_null=True)
-#     
-#     # Preview de destinatarios (solo los primeros 10)
-#     preview_destinatarios = serializers.SerializerMethodField()
-#     
-#     class Meta:
-#         model = __import__('condominio.models', fromlist=['CampanaNotificacion']).CampanaNotificacion
-#         fields = [
-#             'id',
-#             'nombre',
-#             'descripcion',
-#             'titulo',
-#             'cuerpo',
-#             'tipo_notificacion',
-#             'datos_extra',
-#             'tipo_audiencia',
-#             'tipo_audiencia_display',
-#             'usuarios_objetivo',
-#             'segmento_filtros',
-#             'fecha_programada',
-#             'enviar_inmediatamente',
-#             'estado',
-#             'estado_display',
-#             'fecha_enviada',
-#             'enviado_por',
-#             'enviado_por_nombre',
-#             'total_destinatarios',
-#             'total_enviados',
-#             'total_leidos',
-#             'total_errores',
-#             'puede_editarse',
-#             'puede_activarse',
-#             'puede_cancelarse',
-#             'preview_destinatarios',
-#             'created_at',
-#             'updated_at',
-#         ]
-#         read_only_fields = [
-#             'id',
-#             'estado',
-#             'fecha_enviada',
-#             'enviado_por',
-#             'total_enviados',
-#             'total_leidos',
-#             'total_errores',
-#             'created_at',
-#             'updated_at',
-#         ]
-#     
-#     def get_preview_destinatarios(self, obj):
-#         """
-#         Retorna una muestra de los primeros 10 usuarios objetivo
-#         para que el admin pueda verificar antes de enviar.
-#         """
-#         if obj.pk:  # Solo si ya está guardada
-#             usuarios = obj.obtener_usuarios_objetivo()[:10]
-#             total = obj.total_destinatarios if obj.total_destinatarios > 0 else usuarios.count()
-#             
-#             return {
-#                 'total': total,
-#                 'muestra': [
-#                     {
-#                         'id': u.id,
-#                         'nombre': u.nombre,
-#                         'email': u.user.email if hasattr(u, 'user') else None,
-#                         'rol': u.rol.nombre if u.rol else None,
-#                     }
-#                     for u in usuarios
-#                 ]
-#             }
-#         return {'total': 0, 'muestra': []}
-#     
-#     def validate_titulo(self, value):
-#         """Validar que el título no esté vacío y tenga longitud razonable."""
-#         if not value or not value.strip():
-#             raise serializers.ValidationError("El título no puede estar vacío")
-#         if len(value) > 100:
-#             raise serializers.ValidationError("El título no puede exceder 100 caracteres")
-#         return value.strip()
-#     
-#     def validate_cuerpo(self, value):
-#         """Validar que el cuerpo no esté vacío."""
-#         if not value or not value.strip():
-#             raise serializers.ValidationError("El cuerpo del mensaje no puede estar vacío")
-#         return value.strip()
-#     
-#     def validate_tipo_audiencia(self, value):
-#         """Validar que el tipo de audiencia sea válido."""
-#         CampanaNotificacion = __import__('condominio.models', fromlist=['CampanaNotificacion']).CampanaNotificacion
-#         tipos_validos = [choice[0] for choice in CampanaNotificacion.TIPOS_AUDIENCIA]
-#         if value not in tipos_validos:
-#             raise serializers.ValidationError(f"Tipo de audiencia inválido. Debe ser uno de: {tipos_validos}")
-#         return value
-#     
-#     def validate(self, attrs):
-#         """
-#         Validaciones a nivel de objeto para asegurar consistencia.
-#         """
-#         tipo_audiencia = attrs.get('tipo_audiencia', getattr(self.instance, 'tipo_audiencia', None))
-#         usuarios_objetivo = attrs.get('usuarios_objetivo', [])
-#         segmento_filtros = attrs.get('segmento_filtros', {})
-#         fecha_programada = attrs.get('fecha_programada', getattr(self.instance, 'fecha_programada', None))
-#         enviar_inmediatamente = attrs.get('enviar_inmediatamente', getattr(self.instance, 'enviar_inmediatamente', False))
-#         
-#         # Validar que si el tipo es USUARIOS, se proporcione la lista
-#         if tipo_audiencia == 'USUARIOS' and not usuarios_objetivo and not self.instance:
-#             raise serializers.ValidationError({
-#                 'usuarios_objetivo': 'Debe proporcionar al menos un usuario cuando tipo_audiencia es USUARIOS'
-#             })
-#         
-#         # Validar que si el tipo es SEGMENTO, se proporcionen filtros
-#         if tipo_audiencia == 'SEGMENTO' and not segmento_filtros:
-#             raise serializers.ValidationError({
-#                 'segmento_filtros': 'Debe proporcionar filtros cuando tipo_audiencia es SEGMENTO'
-#             })
-#         
-#         # Validar programación: debe tener fecha_programada O enviar_inmediatamente
-#         if not enviar_inmediatamente and not fecha_programada:
-#             raise serializers.ValidationError({
-#                 'fecha_programada': 'Debe especificar fecha_programada o marcar enviar_inmediatamente'
-#             })
-#         
-#         # Si tiene fecha programada, validar que sea futura (solo en creación)
-#         if fecha_programada and not self.instance:
-#             from django.utils import timezone
-#             if fecha_programada < timezone.now():
-#                 raise serializers.ValidationError({
-#                     'fecha_programada': 'La fecha programada debe ser futura'
-#                 })
-#         
-#         return attrs
-#     
-#     def create(self, validated_data):
-#         """
-#         Al crear, establecer estado inicial como BORRADOR.
-#         """
-#         validated_data['estado'] = 'BORRADOR'
-#         return super().create(validated_data)
-#     
-#     def update(self, instance, validated_data):
-#         """
-#         Solo permitir actualización si la campaña puede editarse.
-#         """
-#         if not instance.puede_editarse():
-#             raise serializers.ValidationError(
-#                 f'No se puede editar una campaña en estado {instance.get_estado_display()}'
-#             )
-#         return super().update(instance, validated_data)
+
+class FCMDeviceSerializer(serializers.ModelSerializer):
+    """Serializer para dispositivos FCM."""
+    
+    usuario_nombre = serializers.CharField(source='usuario.nombre', read_only=True)
+    
+    class Meta:
+        model = FCMDevice
+        fields = [
+            'id',
+            'usuario',
+            'usuario_nombre',
+            'registration_id',
+            'tipo_dispositivo',
+            'nombre',
+            'activo',
+            'created_at',
+            'ultima_vez'
+        ]
+        read_only_fields = ['id', 'created_at', 'ultima_vez', 'usuario_nombre']
+
+
+# =====================================================
+# �📢 CAMPAÑA DE NOTIFICACIONES
+# =====================================================
+class CampanaNotificacionSerializer(serializers.ModelSerializer):
+    """Serializer completo para campañas de notificación."""
+    
+    usuarios_objetivo_detalle = serializers.SerializerMethodField()
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    tipo_audiencia_display = serializers.CharField(source='get_tipo_audiencia_display', read_only=True)
+    
+    class Meta:
+        model = CampanaNotificacion
+        fields = [
+            'id',
+            'nombre',
+            'descripcion',
+            'titulo',
+            'cuerpo',
+            'datos_extra',
+            'tipo_notificacion',
+            'tipo_audiencia',
+            'tipo_audiencia_display',
+            'usuarios_objetivo',
+            'usuarios_objetivo_detalle',
+            'segmento_filtros',
+            'estado',
+            'estado_display',
+            'enviar_inmediatamente',
+            'fecha_programada',
+            'fecha_enviada',
+            'total_destinatarios',
+            'total_enviados',
+            'total_errores',
+            'resultado',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = [
+            'id',
+            'estado_display',
+            'tipo_audiencia_display',
+            'fecha_enviada',
+            'total_destinatarios',
+            'total_enviados',
+            'total_errores',
+            'resultado',
+            'created_at',
+            'updated_at'
+        ]
+    
+    def get_usuarios_objetivo_detalle(self, obj):
+        """Retorna información básica de usuarios objetivo (solo primeros 10)."""
+        if obj.tipo_audiencia == 'USUARIOS':
+            usuarios = obj.usuarios_objetivo.all()[:10]
+            return [
+                {
+                    'id': u.id,
+                    'nombre': u.nombre,
+                    'email': u.user.email if hasattr(u, 'user') else None
+                }
+                for u in usuarios
+            ]
+        return []
+    
+    def validate(self, data):
+        """Validaciones personalizadas."""
+        # Si es programada, debe tener fecha
+        if not data.get('enviar_inmediatamente') and not data.get('fecha_programada'):
+            raise serializers.ValidationError(
+                'Debe especificar fecha_programada si no es envío inmediato'
+            )
+        
+        # Si es USUARIOS, debe tener usuarios
+        if data.get('tipo_audiencia') == 'USUARIOS':
+            usuarios = data.get('usuarios_objetivo', [])
+            if not usuarios:
+                raise serializers.ValidationError(
+                    'Debe seleccionar al menos un usuario para tipo_audiencia=USUARIOS'
+                )
+        
+        return data

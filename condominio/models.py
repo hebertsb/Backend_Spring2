@@ -736,3 +736,235 @@ class ComprobantePago(TimeStampedModel):
 
     def __str__(self):
         return f"Comprobante #{self.pk or 'Nuevo'} - {self.reserva} - {self.estado}"
+
+
+# ============================================
+# 📱 DISPOSITIVOS FCM (Firebase Cloud Messaging)
+# ============================================
+class FCMDevice(models.Model):
+    """
+    Dispositivos móviles registrados para recibir notificaciones push.
+    Cada usuario puede tener múltiples dispositivos (ej: teléfono + tablet).
+    """
+    usuario = models.ForeignKey(
+        Usuario, 
+        on_delete=models.CASCADE, 
+        related_name='dispositivos_fcm',
+        help_text='Usuario propietario del dispositivo'
+    )
+    registration_id = models.TextField(
+        unique=True,
+        help_text='Token FCM único del dispositivo'
+    )
+    tipo_dispositivo = models.CharField(
+        max_length=20, 
+        choices=[
+            ('android', 'Android'),
+            ('ios', 'iOS'),
+            ('web', 'Web')
+        ],
+        default='android',
+        help_text='Tipo de dispositivo'
+    )
+    nombre = models.CharField(
+        max_length=100, 
+        blank=True,
+        help_text='Nombre descriptivo (ej: "Celular de Juan")'
+    )
+    activo = models.BooleanField(
+        default=True,
+        help_text='Si está activo para recibir notificaciones'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    ultima_vez = models.DateTimeField(
+        auto_now=True,
+        help_text='Última vez que se actualizó el token'
+    )
+
+    class Meta:
+        verbose_name = 'Dispositivo FCM'
+        verbose_name_plural = 'Dispositivos FCM'
+        ordering = ['-ultima_vez']
+
+    def __str__(self):
+        return f"{self.usuario.nombre} - {self.tipo_dispositivo} ({self.id})"
+
+
+# ============================================
+# 📢 CAMPAÑAS DE NOTIFICACIONES
+# ============================================
+class CampanaNotificacion(models.Model):
+    """
+    Campañas de notificaciones push masivas o segmentadas.
+    Permite envío inmediato o programado.
+    """
+    
+    ESTADOS = [
+        ('BORRADOR', 'Borrador'),
+        ('PROGRAMADA', 'Programada'),
+        ('EN_CURSO', 'En Curso'),
+        ('COMPLETADA', 'Completada'),
+        ('CANCELADA', 'Cancelada'),
+        ('ERROR', 'Error'),
+    ]
+    
+    TIPOS_AUDIENCIA = [
+        ('TODOS', 'Todos los usuarios'),
+        ('USUARIOS', 'Usuarios específicos'),
+        ('SEGMENTO', 'Segmento por filtros'),
+        ('ROL', 'Por rol'),
+    ]
+    
+    TIPOS_NOTIFICACION = [
+        ('informativa', 'Informativa'),
+        ('promocional', 'Promocional'),
+        ('urgente', 'Urgente'),
+        ('campana_marketing', 'Campaña Marketing'),
+        ('actualizacion_sistema', 'Actualización Sistema'),
+    ]
+    
+    # Información básica
+    nombre = models.CharField(
+        max_length=200,
+        help_text='Nombre interno de la campaña'
+    )
+    descripcion = models.TextField(
+        blank=True,
+        help_text='Descripción interna (no se envía)'
+    )
+    
+    # Contenido de la notificación
+    titulo = models.CharField(
+        max_length=100,
+        help_text='Título que verá el usuario (máx 100 caracteres)'
+    )
+    cuerpo = models.TextField(
+        max_length=500,
+        help_text='Mensaje que verá el usuario (máx 500 caracteres)'
+    )
+    
+    # Datos adicionales (JSON)
+    datos_extra = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Datos adicionales para la app (acción, URL, etc.)'
+    )
+    
+    # Clasificación
+    tipo_notificacion = models.CharField(
+        max_length=50,
+        choices=TIPOS_NOTIFICACION,
+        default='informativa'
+    )
+    
+    # Segmentación
+    tipo_audiencia = models.CharField(
+        max_length=20,
+        choices=TIPOS_AUDIENCIA,
+        default='TODOS'
+    )
+    usuarios_objetivo = models.ManyToManyField(
+        Usuario,
+        blank=True,
+        related_name='campanas_notificacion',
+        help_text='Usuarios específicos (si tipo_audiencia=USUARIOS)'
+    )
+    segmento_filtros = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Filtros de segmentación (rol, num_viajes, etc.)'
+    )
+    
+    # Programación
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADOS,
+        default='BORRADOR'
+    )
+    enviar_inmediatamente = models.BooleanField(
+        default=True,
+        help_text='Si es True, se envía al activar. Si es False, usar fecha_programada'
+    )
+    fecha_programada = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Fecha y hora de envío programado'
+    )
+    fecha_enviada = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Fecha y hora en que se completó el envío'
+    )
+    
+    # Resultados
+    total_destinatarios = models.IntegerField(
+        default=0,
+        help_text='Número de destinatarios objetivo'
+    )
+    total_enviados = models.IntegerField(
+        default=0,
+        help_text='Notificaciones enviadas exitosamente'
+    )
+    total_errores = models.IntegerField(
+        default=0,
+        help_text='Notificaciones con error'
+    )
+    resultado = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Detalles completos del envío'
+    )
+    
+    # Metadatos
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Campaña de Notificación'
+        verbose_name_plural = 'Campañas de Notificación'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.nombre} - {self.get_estado_display()}"
+    
+    def puede_activarse(self):
+        """Verifica si la campaña puede ser activada."""
+        return self.estado in ['BORRADOR', 'PROGRAMADA']
+    
+    def puede_cancelarse(self):
+        """Verifica si la campaña puede ser cancelada."""
+        return self.estado in ['BORRADOR', 'PROGRAMADA']
+    
+    def calcular_destinatarios(self):
+        """Calcula el número de destinatarios según la segmentación."""
+        usuarios = self.obtener_usuarios_objetivo()
+        self.total_destinatarios = usuarios.count()
+        self.save(update_fields=['total_destinatarios'])
+        return self.total_destinatarios
+    
+    def obtener_usuarios_objetivo(self):
+        """Retorna QuerySet de usuarios que recibirán la notificación."""
+        if self.tipo_audiencia == 'TODOS':
+            return Usuario.objects.filter(user__is_active=True)
+        
+        elif self.tipo_audiencia == 'USUARIOS':
+            return self.usuarios_objetivo.filter(user__is_active=True)
+        
+        elif self.tipo_audiencia == 'SEGMENTO':
+            usuarios = Usuario.objects.filter(user__is_active=True)
+            
+            # Aplicar filtros del segmento
+            if 'rol' in self.segmento_filtros:
+                usuarios = usuarios.filter(rol__nombre=self.segmento_filtros['rol'])
+            
+            if 'min_viajes' in self.segmento_filtros:
+                usuarios = usuarios.filter(num_viajes__gte=self.segmento_filtros['min_viajes'])
+            
+            return usuarios
+        
+        elif self.tipo_audiencia == 'ROL':
+            rol_nombre = self.segmento_filtros.get('rol')
+            if rol_nombre:
+                return Usuario.objects.filter(user__is_active=True, rol__nombre=rol_nombre)
+        
+        return Usuario.objects.none()
