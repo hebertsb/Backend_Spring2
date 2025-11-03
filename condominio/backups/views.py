@@ -7,7 +7,8 @@ from datetime import datetime
 import zipfile
 from pathlib import Path
 import traceback
-
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import permission_classes
 # Importaciones de módulos internos
 from .utils import BACKUP_DIR
 from .restore_backup import restore_backup
@@ -206,13 +207,24 @@ def eliminar_backup(request, filename):
 # ============================================================
 # ☁️ FUNCIONES DE DROPBOX
 # ============================================================
-
 @api_view(['GET'])
 def listar_backups_dropbox(request):
-    """Lista los backups almacenados en Dropbox."""
+    """Lista los backups almacenados en Dropbox (ordenados por fecha descendente)."""
     try:
         files = list_backups_dropbox()
-        return JsonResponse({'backups': files})
+        
+        # ✅ ORDENAR por fecha DESCENDENTE (más reciente primero)
+        files_ordenados = sorted(
+            files, 
+            key=lambda x: x.get('modified', ''), 
+            reverse=True  # ← DESCENDENTE
+        )
+        
+        print(f"🎯 Backups ordenados descendente: {len(files_ordenados)} archivos")
+        if files_ordenados:
+            print(f"🆕 Primer backup (más reciente): {files_ordenados[0]['name']}")
+        
+        return JsonResponse({'backups': files_ordenados})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -250,3 +262,77 @@ def restaurar_desde_dropbox(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+####descargas 
+@api_view(['GET'])
+def descargar_desde_dropbox(request, filename):
+    """
+    GET /api/backups/dropbox/descargar/nombre_backup.zip
+    """
+    try:
+        from .upload_dropbox import get_dropbox_share_link
+        
+        download_link = get_dropbox_share_link(filename)
+        
+        if not download_link:
+            return JsonResponse({'error': f'Backup no encontrado: {filename}'}, status=404)
+        
+        # Redirigir directamente a Dropbox
+        from django.http import HttpResponseRedirect
+        return HttpResponseRedirect(download_link)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+
+###metodo de emergencia sin base
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Sin autenticación normal
+def restaurar_base_emergencia(request):
+    """
+    EMERGENCIA: Restaura solo la base de datos cuando se borró toda la base
+    No requiere autenticación JWT (usa token de emergencia)
+    """
+    emergency_token = request.data.get('emergency_token')
+    expected_token = os.environ.get('EMERGENCY_RESTORE_TOKEN')
+    
+    # Validar token de emergencia
+    if not emergency_token or emergency_token != expected_token:
+        return JsonResponse(
+            {'error': 'Token de emergencia inválido'}, 
+            status=403
+        )
+    
+    filename = request.data.get('filename')
+    if not filename:
+        return JsonResponse(
+            {'error': 'Debe especificar el nombre del backup'}, 
+            status=400
+        )
+    
+    try:
+        # Descargar backup desde Dropbox
+        from .upload_dropbox import download_from_dropbox
+        local_path = download_from_dropbox(filename, BACKUP_DIR)
+        
+        # Restaurar SOLO la base de datos (sin tocar código)
+        result = restore_backup(
+            backup_zip_path=Path(local_path),
+            restore_code=False,    # NO restaurar código
+            restore_db=True        # SÍ restaurar base de datos
+        )
+        
+        # Limpiar archivo temporal
+        if Path(local_path).exists():
+            os.remove(local_path)
+        
+        return JsonResponse({
+            'message': f'✅ Base de datos restaurada exitosamente desde: {filename}',
+            'backup_used': filename,
+            'result': result
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error en restauración de emergencia: {str(e)}'
+        }, status=500)

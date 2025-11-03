@@ -3,9 +3,7 @@ from authz.serializer import RolSerializer
 from django.contrib.auth.models import User
 from .models import (
     Categoria,
-    Proveedor,
     Servicio,
-    Suscripcion,
     Usuario,
     Campania,
     Paquete,
@@ -21,7 +19,35 @@ from .models import (
     ConfiguracionGlobalReprogramacion,
     Reprogramacion,
     ComprobantePago,
+    ReservaServicio,
+    FCMDevice,
+    CampanaNotificacion,
+    # Proveedor, Suscripcion - MODELOS REMOVIDOS POR MIGRACION 0009
 )
+# =====================================================
+# 🔗 RESERVA_SERVICIO
+# =====================================================
+class ReservaServicioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReservaServicio
+        fields = ['id', 'servicio', 'fecha', 'fecha_inicio', 'fecha_fin']
+
+# =====================================================
+# Reserva con servicios múltiples
+# =====================================================
+class ReservaConServiciosSerializer(serializers.ModelSerializer):
+    servicios = ReservaServicioSerializer(many=True)
+
+    class Meta:
+        model = Reserva
+        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'servicios']
+
+    def create(self, validated_data):
+        servicios_data = validated_data.pop('servicios')
+        reserva = Reserva.objects.create(**validated_data)
+        for servicio_data in servicios_data:
+            ReservaServicio.objects.create(reserva=reserva, **servicio_data)
+        return reserva
 
 
 # =====================================================
@@ -161,12 +187,12 @@ class CampaniaSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ["id", "created_at", "updated_at"]
 
-    def validate(self, data):
-        fecha_inicio = data.get(
+    def validate(self, attrs):
+        fecha_inicio = attrs.get(
             "fecha_inicio", getattr(self.instance, "fecha_inicio", None)
         )
-        fecha_fin = data.get("fecha_fin", getattr(self.instance, "fecha_fin", None))
-        monto = data.get("monto", getattr(self.instance, "monto", None))
+        fecha_fin = attrs.get("fecha_fin", getattr(self.instance, "fecha_fin", None))
+        monto = attrs.get("monto", getattr(self.instance, "monto", None))
 
         if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
             raise serializers.ValidationError(
@@ -176,7 +202,7 @@ class CampaniaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "El monto de descuento debe ser mayor que cero."
             )
-        return data
+        return attrs
 
 
 # =====================================================
@@ -326,8 +352,9 @@ class PaqueteSerializer(serializers.ModelSerializer):
             "disponibilidad",
             "campania_info",
             "created_at",
+            "es_personalizado",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "es_personalizado"]
 
     def get_servicios_incluidos(self, obj):
         """Lista de servicios/destinos incluidos en el paquete"""
@@ -451,19 +478,26 @@ class CuponSerializer(serializers.ModelSerializer):
 # 🏞️ SERVICIO
 # =====================================================
 class ServicioSerializer(serializers.ModelSerializer):
-    categoria = CategoriaSerializer(read_only=True)
-    categoria_id = serializers.PrimaryKeyRelatedField(
-        queryset=Categoria.objects.all(), source="categoria", write_only=True
-    )
-    proveedor = UsuarioSerializer(read_only=True)
-    proveedor_id = serializers.PrimaryKeyRelatedField(
-        queryset=Usuario.objects.all(), source="proveedor", write_only=True
-    )
+    categoria = CategoriaSerializer(read_only=True, default=None)
+    proveedor = UsuarioSerializer(read_only=True, default=None)
 
     class Meta:
         model = Servicio
-        fields = "__all__"
-        read_only_fields = ["id", "created_at"]
+        fields = [
+            "id",
+            "titulo",
+            "descripcion",
+            "duracion",
+            "capacidad_max",
+            "punto_encuentro",
+            "estado",
+            "imagen_url",
+            "precio_usd",
+            "servicios_incluidos",
+            "categoria",
+            "proveedor"
+        ]
+        read_only_fields = ["id"]
 
 
 # =====================================================
@@ -577,16 +611,16 @@ class CampaniaServicioSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-    def validate(self, data):
-        servicio = data.get("servicio")
-        campania = data.get("campania")
+    def validate(self, attrs):
+        servicio = attrs.get("servicio")
+        campania = attrs.get("campania")
         if CampaniaServicio.objects.filter(
             servicio=servicio, campania=campania
         ).exists():
             raise serializers.ValidationError(
                 "Esta relación de servicio y campaña ya existe."
             )
-        return data
+        return attrs
 
 
 # =====================================================
@@ -796,27 +830,144 @@ class ComprobantePagoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# ==========================
+# SERIALIZERS DESHABILITADOS
+# ==========================
+# Los siguientes serializers están comentados porque sus modelos fueron
+# eliminados en la migración 0009 (Proveedor, Suscripcion, CampanaNotificacion).
+# Si en el futuro se necesitan estas funcionalidades, será necesario:
+# 1. Restaurar los modelos en condominio/models.py
+# 2. Crear migraciones para agregar las tablas a la BD
+# 3. Descomentar estos serializers
 
-class ProveedorSerializer(serializers.ModelSerializer):
-    # Campo para escritura (solo el id del usuario)
-    usuario_id = serializers.PrimaryKeyRelatedField(
-        queryset=Usuario.objects.all(), source="usuario", write_only=True
-    )
-    # Campo para lectura (expandido con datos del usuario)
-    usuario = UsuarioSerializer(read_only=True)
+# class ProveedorSerializer(serializers.ModelSerializer):
+#     # Campo para escritura (solo el id del usuario)
+#     usuario_id = serializers.PrimaryKeyRelatedField(
+#         queryset=Usuario.objects.all(), source="usuario", write_only=True
+#     )
+#     # Campo para lectura (expandido con datos del usuario)
+#     usuario = UsuarioSerializer(read_only=True)
+#
+#     class Meta:
+#         model = Proveedor
+#         fields = "__all__"
+#         read_only_fields = ["id", "created_at", "updated_at"]
 
+# class SuscripcionSerializer(serializers.ModelSerializer):
+#     proveedor = ProveedorSerializer(read_only=True)
+#     proveedor_id = serializers.PrimaryKeyRelatedField(
+#         queryset=Proveedor.objects.all(), source="proveedor", write_only=True
+#     )
+#
+#     class Meta:
+#         model = Suscripcion
+#         fields = "__all__"
+#         read_only_fields = ["id", "created_at", "updated_at"]
+
+
+# =====================================================
+# 📱 DISPOSITIVOS FCM
+# =====================================================
+
+class FCMDeviceSerializer(serializers.ModelSerializer):
+    """Serializer para dispositivos FCM."""
+    
+    usuario_nombre = serializers.CharField(source='usuario.nombre', read_only=True)
+    
     class Meta:
-        model = Proveedor
-        fields = "__all__"
-        read_only_fields = ["id", "created_at", "updated_at"]
+        model = FCMDevice
+        fields = [
+            'id',
+            'usuario',
+            'usuario_nombre',
+            'registration_id',
+            'tipo_dispositivo',
+            'nombre',
+            'activo',
+            'created_at',
+            'ultima_vez'
+        ]
+        read_only_fields = ['id', 'created_at', 'ultima_vez', 'usuario_nombre']
 
-class SuscripcionSerializer(serializers.ModelSerializer):
-    proveedor = ProveedorSerializer(read_only=True)
-    proveedor_id = serializers.PrimaryKeyRelatedField(
-        queryset=Proveedor.objects.all(), source="proveedor", write_only=True
-    )
 
+# =====================================================
+# �📢 CAMPAÑA DE NOTIFICACIONES
+# =====================================================
+class CampanaNotificacionSerializer(serializers.ModelSerializer):
+    """Serializer completo para campañas de notificación."""
+    
+    usuarios_objetivo_detalle = serializers.SerializerMethodField()
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    tipo_audiencia_display = serializers.CharField(source='get_tipo_audiencia_display', read_only=True)
+    
     class Meta:
-        model = Suscripcion
-        fields = "__all__"
-        read_only_fields = ["id", "created_at", "updated_at"]
+        model = CampanaNotificacion
+        fields = [
+            'id',
+            'nombre',
+            'descripcion',
+            'titulo',
+            'cuerpo',
+            'datos_extra',
+            'tipo_notificacion',
+            'tipo_audiencia',
+            'tipo_audiencia_display',
+            'usuarios_objetivo',
+            'usuarios_objetivo_detalle',
+            'segmento_filtros',
+            'estado',
+            'estado_display',
+            'enviar_inmediatamente',
+            'fecha_programada',
+            'fecha_enviada',
+            'total_destinatarios',
+            'total_enviados',
+            'total_errores',
+            'resultado',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = [
+            'id',
+            'estado_display',
+            'tipo_audiencia_display',
+            'fecha_enviada',
+            'total_destinatarios',
+            'total_enviados',
+            'total_errores',
+            'resultado',
+            'created_at',
+            'updated_at'
+        ]
+    
+    def get_usuarios_objetivo_detalle(self, obj):
+        """Retorna información básica de usuarios objetivo (solo primeros 10)."""
+        if obj.tipo_audiencia == 'USUARIOS':
+            usuarios = obj.usuarios_objetivo.all()[:10]
+            return [
+                {
+                    'id': u.id,
+                    'nombre': u.nombre,
+                    'email': u.user.email if hasattr(u, 'user') else None
+                }
+                for u in usuarios
+            ]
+        return []
+    
+    def validate(self, data):
+        """Validaciones personalizadas."""
+        # Si es programada, debe tener fecha
+        if not data.get('enviar_inmediatamente') and not data.get('fecha_programada'):
+            raise serializers.ValidationError(
+                'Debe especificar fecha_programada si no es envío inmediato'
+            )
+        
+        # Si es USUARIOS, debe tener usuarios
+        if data.get('tipo_audiencia') == 'USUARIOS':
+            usuarios = data.get('usuarios_objetivo', [])
+            if not usuarios:
+                raise serializers.ValidationError(
+                    'Debe seleccionar al menos un usuario para tipo_audiencia=USUARIOS'
+                )
+        
+        return data

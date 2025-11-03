@@ -1,19 +1,20 @@
+# core/views.py
+from datetime import timedelta, timezone
+from django.http import HttpResponse
 import stripe
 from django.conf import settings
 from condominio.models import Paquete, Servicio
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import os
-from openai import OpenAI
 from dotenv import load_dotenv
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
 from rest_framework import status
-from condominio.models import Paquete, Servicio
 from django.core.cache import cache
+from .openai_client import get_openai_client  # ← cliente centralizado
 
+load_dotenv()
 stripe.api_key = settings.STRIPE_SECRET_KEY
-url_frontend = os.getenv("URL_FRONTEND")
+url_frontend = os.getenv("URL_FRONTEND", "http://127.0.0.1:3000")
 
 @api_view(["GET"])
 def obtener_recomendacion(request):
@@ -60,7 +61,7 @@ def crear_checkout_session(request):
                     "price_data": {
                         "currency": "bob",
                         "product_data": {"name": nombre},
-                        "unit_amount": int(precio),
+                        "unit_amount": int(precio),  # se asume centavos enviados desde frontend
                     },
                     "quantity": cantidad,
                 }
@@ -79,31 +80,49 @@ def crear_checkout_session(request):
         print("❌ Error Stripe:", e)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-load_dotenv()
-
-
-def get_openai_client():
-    """Intentar crear y devolver un cliente OpenAI compatible con distintas versiones.
-
-    Primero intenta usar la forma con `base_url` (para GROQ). Si falla por incompatibilidades
-    (por ejemplo TypeError al pasar argumentos no esperados), intenta sin `base_url`.
-    Si ambas fallan, propaga la excepción para que el handler devuelva un error manejable.
+# =====================================================
+# SUSCRIPCIONES - ENDPOINT DESHABILITADO
+# =====================================================
+@api_view(["POST"])
+def crear_checkout_session_suscripcion(request):
     """
-    from openai import OpenAI as _OpenAI
+    Endpoint deshabilitado - Requiere modelos Proveedor y Suscripcion eliminados.
+    """
+    return Response({
+        "error": "Funcionalidad temporalmente deshabilitada. Modelos Proveedor y Suscripcion fueron eliminados."
+    }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
-    api_key = os.getenv("GROQ_API_KEY")
-    # Intento 1: con base_url (para GROQ)
+@api_view(["GET"])
+def verificar_pago(request):
+    session_id = request.GET.get("session_id")
+
+    if not session_id:
+        return Response({"error": "Falta session_id"}, status=400)
+
     try:
-        return _OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
-    except TypeError:
-        # Posible incompatibilidad con la versión instalada; intentar sin base_url
-        try:
-            return _OpenAI(api_key=api_key)
-        except Exception:
-            # Propagar para que el handler lo capture
-            raise
+        session = stripe.checkout.Session.retrieve(session_id)
 
+        pago_exitoso = session.payment_status == "paid"
+
+        # extraer metadata
+        metadata = getattr(session, "metadata", {}) or {}
+        payment_type = metadata.get("payment_type", "venta")
+        usuario_id_meta = metadata.get("usuario_id", None)
+        titulo_meta = metadata.get("titulo", None)
+
+        # NOTA: Funcionalidad de suscripciones deshabilitada (modelo Suscripcion eliminado)
+
+        return Response({
+            "pago_exitoso": pago_exitoso,
+            "cliente_email": session.customer_details.email if session.customer_details else None,
+            "monto_total": session.amount_total,
+            "moneda": session.currency,
+            "payment_type": payment_type,
+        })
+
+    except Exception as e:
+        print("❌ Error verificando sesión:", e)
+        return Response({"error": str(e)}, status=500)
 
 @api_view(["POST"])
 def chatbot_turismo(request):
@@ -142,8 +161,8 @@ Usa siempre el siguiente contexto para responder de forma amable, breve y precis
 2. Solo responde con información real de los paquetes o servicios que existen en el contexto.  
    Si no tienes la información, di literalmente: “No tengo información disponible sobre eso.”
 3. Debes incluir **exactamente una URL válida** al final de tu respuesta.  
-   - Si es un paquete, usa: {url_frontend}paquetes/{id}/
-   - Si es un servicio, usa: {url_frontend}destinos/{id}/
+   - Si es un paquete, usa: {url_frontend}paquetes/{{id}}/
+   - Si es un servicio, usa: {url_frontend}destinos/{{id}}/
    Ejemplo:  
    > Te recomiendo el paquete “Aventura Andina”, ideal para conocer el Salar de Uyuni. Cuesta 480 USD y dura 3 días.  
    > {url_frontend}paquetes/1/
@@ -161,16 +180,12 @@ Recuerda: Responde como un asistente amable y profesional de turismo boliviano.
     """
 
     try:
-        # Inicializar cliente OpenAI de forma perezosa para evitar fallos en import time
-        client = get_openai_client()
+        client = get_openai_client()  # ← cliente centralizado
 
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {
-                    "role": "system",
-                    "content": "Asistente turístico experto en Bolivia.",
-                },
+                {"role": "system", "content": "Asistente turístico experto en Bolivia."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
@@ -180,3 +195,13 @@ Recuerda: Responde como un asistente amable y profesional de turismo boliviano.
         return Response({"respuesta": respuesta})
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(["GET"])
+def verificar_proveedor(request, usuario_id):
+    """
+    Endpoint deshabilitado - Requiere modelo Proveedor eliminado.
+    """
+    return Response({
+        "error": "Funcionalidad temporalmente deshabilitada. Modelo Proveedor fue eliminado.",
+        "existe": False
+    }, status=status.HTTP_501_NOT_IMPLEMENTED)

@@ -1,10 +1,13 @@
+# core/webhooks.py
 import stripe
+from threading import Thread
 from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from threading import Thread
 from django.core.cache import cache
 from .ai import generate_packing_recommendation
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 def generate_and_cache_recommendation(reserva_id: int):
     """

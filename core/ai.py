@@ -1,8 +1,8 @@
+# core/ai.py
 import os
-from core.views import get_openai_client
-from condominio.models import Reserva, Paquete, Servicio
-from rest_framework.response import Response
 import json
+from core.openai_client import get_openai_client  # ← ¡ya no importamos desde core.views!
+from condominio.models import Reserva, Paquete, Servicio
 
 def generate_packing_recommendation(reserva_id: int) -> dict:
     """
@@ -74,8 +74,7 @@ Asegúrate de:
 5. Sugerir equipo específico si el viaje lo requiere
 """
 
-        # Usar el mismo cliente OpenAI que el chatbot
-        client = get_openai_client()
+        client = get_openai_client()  # ← cliente centralizado
         
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",

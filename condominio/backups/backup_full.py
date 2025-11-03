@@ -1,6 +1,9 @@
 import os
 import shutil
 from datetime import datetime
+from pytz import timezone
+import time
+import platform
 from pathlib import Path
 import subprocess
 import zipfile
@@ -9,6 +12,12 @@ import sys
 from dotenv import load_dotenv
 from .upload_dropbox import upload_to_dropbox, get_dropbox_share_link
 
+os.environ['TZ'] = 'America/La_Paz'
+if platform.system() != "Windows":
+    time.tzset()
+
+def get_bolivia_now():
+    return datetime.now(timezone("America/La_Paz"))
 # =====================================================
 # 🌍 Configuración inicial
 # =====================================================
@@ -28,13 +37,15 @@ MANAGE_PY = PROJECT_ROOT / "manage.py"
 def run_backup(include_backend=True, include_db=True, include_frontend=True, db_type="postgres", automatic=False):
     from urllib.parse import urlparse
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+    # = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = get_bolivia_now().strftime("%Y%m%d_%H%M%S")
+
     # Diferenciar entre backup manual y automático
     if automatic:
         backup_type = "automático"
         temp_backup_dir = BACKUP_ROOT / f"auto_backup_temp_{timestamp}"
-        week_number = datetime.now().strftime("%Y-%U")  # Año-Semana
+        #week_number = datetime.now().strftime("%Y-%U")  # Año-Semana
+        week_number = get_bolivia_now().strftime("%Y-%U")  # Año-Semana
         zip_filename = f"auto_backup_{week_number}_{timestamp}.zip"
     else:
         backup_type = "manual"
@@ -44,7 +55,7 @@ def run_backup(include_backend=True, include_db=True, include_frontend=True, db_
     os.makedirs(temp_backup_dir, exist_ok=True)
 
     print(f"📦 Creando backup {backup_type} en: {temp_backup_dir}")
-
+    print("🕒 Hora local (Bolivia):", get_bolivia_now().strftime("%Y-%m-%d %H:%M:%S"))
     # =====================================================
     # 🗄️ Backup de base de datos (PostgreSQL o SQLite) - TU CÓDIGO ORIGINAL
     # =====================================================

@@ -5,7 +5,8 @@ import shutil
 from pathlib import Path
 import subprocess
 from urllib.parse import urlparse
-from condominio.backups.utils import BACKUP_DIR  # Usa la ruta centralizada
+from datetime import datetime 
+from condominio.backups.utils import BACKUP_DIR
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -31,28 +32,11 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
         zip_ref.extractall(temp_dir)
 
     # ------------------------------------
-    # DETECTAR TIPO DE BACKUP (NUEVO)
-    # ------------------------------------
-    backup_type = detect_backup_type(temp_dir)
-    print(f"🔍 Tipo de backup detectado: {backup_type}")
-
-    # ------------------------------------
-    # Restaurar código backend
+    # Restaurar código backend (LÓGICA ANTIGUA - FUNCIONA)
     # ------------------------------------
     if restore_code:
-        # Buscar backend_code en diferentes ubicaciones posibles
-        backend_code_dirs = [
-            temp_dir / "backend_code",  # Backups manuales
-            next(temp_dir.glob("backend_code_*"), None),  # Backups automáticos
-        ]
-        
-        backend_code_dir = None
-        for possible_dir in backend_code_dirs:
-            if possible_dir and possible_dir.exists():
-                backend_code_dir = possible_dir
-                break
-
-        if backend_code_dir:
+        backend_code_dir = temp_dir / "backend_code"  
+        if backend_code_dir.exists():
             print("📝 Restaurando código backend completo...")
 
             include_dirs = ["condominio", "core", "authz", "config", "scripts"]
@@ -66,10 +50,10 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
                     shutil.copytree(src, dst)
                     print(f"✅ Carpeta restaurada: {folder}")
         else:
-            print("⚠️ No se encontró carpeta de código backend en el backup.")
+            print("⚠️ No se encontró carpeta 'backend_code' en el backup.")
 
     # ------------------------------------
-    # Restaurar base de datos
+    # Restaurar base de datos 
     # ------------------------------------
     if restore_db:
         print("🗄️ Restaurando base de datos...")
@@ -79,32 +63,36 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
         postgres_dump = next(temp_dir.glob("*.sql"), None)
         json_files = list(temp_dir.glob("*.json"))
 
-        # Obtener configuración de Postgres
+        # Obtener configuración de Postgres (MEJORA NUEVA)
         DATABASE_URL = get_database_url()
-        
-        # ------------------- SQLite -------------------
+
+        # ------------------- SQLite  -------------------
         if sqlite_file.exists():
             dst_db = BASE_DIR / "db.sqlite3"
             if dst_db.exists():
-                # Hacer backup de la BD actual antes de reemplazar
-                backup_current_db(dst_db)
                 dst_db.unlink()
             shutil.copy2(sqlite_file, dst_db)
             print(f"✅ Base de datos SQLite restaurada: {dst_db}")
 
-        # ------------------- PostgreSQL -------------------
+        # -------------------  -------------------
         elif postgres_dump:
             print(f"🔄 Restaurando dump PostgreSQL: {postgres_dump.name}")
             restore_postgresql(DATABASE_URL, postgres_dump)
 
-        # ------------------- JSON Fixtures -------------------
+        # -------------------  -------------------
         elif json_files:
-            restore_json_fixtures(json_files)
+            for json_file in json_files:
+                print(f"🔄 Restaurando fixture JSON: {json_file.name}")
+                subprocess.run([
+                    sys.executable, str(BASE_DIR / "manage.py"),
+                    "loaddata", str(json_file)
+                ])
+            print("✅ Fixtures restaurados.")
         else:
             print("⚠️ No se encontró base de datos, dump o fixture JSON.")
 
     # ------------------------------------
-    # Ejecutar migraciones (NUEVO)
+    # Ejecutar migraciones 
     # ------------------------------------
     if restore_db:
         print("🔄 Ejecutando migraciones de Django...")
@@ -123,17 +111,8 @@ def restore_backup(backup_zip_path: Path, restore_code=True, restore_db=True):
 
 
 # ====================================================
-#   FUNCIONES AUXILIARES (NUEVAS)
+#   FUNCIONES AUXILIARES )
 # ====================================================
-
-def detect_backup_type(temp_dir: Path) -> str:
-    """Detecta si el backup es manual o automático"""
-    if (temp_dir / "backend_code").exists():
-        return "manual"
-    elif any(temp_dir.glob("backend_code_*")):
-        return "automatic"
-    else:
-        return "unknown"
 
 def get_database_url() -> str:
     """Obtiene la URL de la base de datos (compartida con backup_full.py)"""
@@ -155,14 +134,8 @@ def get_database_url() -> str:
     
     return DATABASE_URL
 
-def backup_current_db(db_path: Path):
-    """Crea un backup de la base de datos actual antes de restaurar"""
-    backup_path = BACKUP_DIR / f"pre_restore_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite3"
-    shutil.copy2(db_path, backup_path)
-    print(f"📋 Backup de BD actual creado: {backup_path.name}")
-
 def restore_postgresql(database_url: str, postgres_dump: Path):
-    """Restaura un dump de PostgreSQL"""
+    """Restaura un dump de PostgreSQL (MEJORA NUEVA + tu enfoque DROP DATABASE)"""
     try:
         parsed = urlparse(database_url)
         pg_user = parsed.username
@@ -173,51 +146,47 @@ def restore_postgresql(database_url: str, postgres_dump: Path):
         
         os.environ["PGPASSWORD"] = pg_password or ""
 
-        # Primero dropear y recrear la base de datos para limpieza completa
-        print("🧹 Limpiando base de datos existente...")
+        print(f"🧹 Recreando base de datos '{pg_db}'...")
+        
+        # 1. Desconectar todas las conexiones activas
         subprocess.run([
             "psql",
             "-U", pg_user,
-            "-h", pg_host,
+            "-h", pg_host, 
             "-p", str(pg_port),
-            "-d", "postgres",  # Conectarse a postgres para poder dropear la BD
-            "-c", f"DROP DATABASE IF EXISTS {pg_db}; CREATE DATABASE {pg_db};"
-        ], check=False)  # No fallar si no puede dropear
+            "-d", "postgres",
+            "-c", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{pg_db}';"
+        ], check=False)
 
-        # Restaurar el dump
+        # 2. Dropear y recrear la base de datos )
+        subprocess.run([
+            "psql", 
+            "-U", pg_user,
+            "-h", pg_host,
+            "-p", str(pg_port), 
+            "-d", "postgres",
+            "-c", f"DROP DATABASE IF EXISTS {pg_db}; CREATE DATABASE {pg_db};"
+        ], check=True)
+
+        # 3. Restaurar el dump 
         print("🔄 Restaurando datos...")
         result = subprocess.run([
             "psql",
             "-U", pg_user,
             "-h", pg_host,
             "-p", str(pg_port),
-            "-d", pg_db,
+            "-d", pg_db, 
             "-f", str(postgres_dump)
-        ])
+        ], check=True)
 
-        if result.returncode == 0:
-            print("✅ Base de datos PostgreSQL restaurada correctamente.")
-        else:
-            print("❌ Error al restaurar PostgreSQL")
+        print("✅ Base de datos PostgreSQL restaurada correctamente.")
 
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
         print(f"❌ Error al restaurar PostgreSQL: {e}")
-
-def restore_json_fixtures(json_files: list):
-    """Restaura fixtures JSON de Django"""
-    for json_file in json_files:
-        print(f"🔄 Restaurando fixture JSON: {json_file.name}")
-        result = subprocess.run([
-            sys.executable, str(BASE_DIR / "manage.py"),
-            "loaddata", str(json_file)
-        ])
-        if result.returncode == 0:
-            print(f"✅ Fixture {json_file.name} restaurado.")
-        else:
-            print(f"⚠️ Error restaurando fixture {json_file.name}")
+        raise
 
 def run_django_migrations():
-    """Ejecuta las migraciones de Django después de restaurar"""
+    """Ejecuta las migraciones de Django después de restaurar (MEJORA NUEVA)"""
     try:
         # Aplicar migraciones
         subprocess.run([
@@ -226,23 +195,15 @@ def run_django_migrations():
         ], check=True)
         print("✅ Migraciones aplicadas correctamente.")
         
-        # Recolectar archivos estáticos (opcional)
-        subprocess.run([
-            sys.executable, str(BASE_DIR / "manage.py"),
-            "collectstatic", "--noinput"
-        ], check=False)
-        print("✅ Archivos estáticos actualizados.")
-        
     except subprocess.CalledProcessError as e:
         print(f"⚠️ Error ejecutando migraciones: {e}")
 
 
 # ====================================================
-#   CLI (MEJORADA)
+#   CLI 
 # ====================================================
 if __name__ == "__main__":
     import argparse
-    from datetime import datetime
 
     parser = argparse.ArgumentParser(description="Restore backup Django (SQLite, PostgreSQL o fixtures)")
     parser.add_argument("--select", action="store_true", help="Seleccionar backup a restaurar")
