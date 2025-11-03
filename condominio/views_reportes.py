@@ -38,7 +38,7 @@ def procesar_comando_ia(request):
     
     Request Body:
     {
-        "comando": "dame reportes de ventas de santa cruz del mes pasado en excel",
+        "comando" | "prompt" | "texto": "dame reportes de ventas de santa cruz del mes pasado en excel",
         "contexto": "reportes"  // opcional
     }
     
@@ -63,12 +63,18 @@ def procesar_comando_ia(request):
     Versión: 2.3.0
     """
     try:
-        # Validar request
-        comando = request.data.get('comando', '').strip()
+        # Validar request (aceptar alias usados por el frontend: prompt/texto)
+        comando_raw = (
+            request.data.get('comando')
+            or request.data.get('prompt')
+            or request.data.get('texto')
+            or ''
+        )
+        comando = comando_raw.strip()
         if not comando:
             return Response({
                 'success': False,
-                'error': 'El campo "comando" es requerido y no puede estar vacío'
+                'error': 'El campo "comando" (o alias "prompt"/"texto") es requerido y no puede estar vacío'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         contexto = request.data.get('contexto', 'reportes')
@@ -78,8 +84,13 @@ def procesar_comando_ia(request):
         resultado = processor.procesar_comando(comando, contexto)
         
         # Agregar información adicional
+        usando_ia = processor.client is not None
         resultado['success'] = True
-        resultado['usando_ia'] = processor.client is not None
+        resultado['usando_ia'] = usando_ia
+        # Señalizar disponibilidad de IA y motivo del fallback (si aplica)
+        resultado['ia_disponible'] = usando_ia
+        if not usando_ia:
+            resultado['motivo_fallback'] = 'OPENAI_API_KEY no configurada o cliente no inicializado'
         resultado['comando_original'] = comando
         
         # Log de la operación
@@ -630,13 +641,62 @@ def generar_reporte_clientes(request):
     """
     try:
         formato = request.GET.get('formato', 'pdf').lower()
+        moneda = request.GET.get('moneda', 'USD').upper()
         tipo_cliente = request.GET.get('tipo_cliente')  # nuevo, recurrente, vip
-        
+        departamento = request.GET.get('departamento')
+        ciudad = request.GET.get('ciudad')
+        fecha_inicio = request.GET.get('fecha_inicio')
+        fecha_fin = request.GET.get('fecha_fin')
+        # Filtro por estado solicitado (pagada/confirmada/completada), acepta múltiples valores separados por coma
+        estado_param = request.GET.get('estado')
+        if not estado_param:
+            # también soporta repetir ?estado=pagada&estado=confirmada
+            estado_list = request.GET.getlist('estado')
+            estado_param = ','.join(estado_list) if estado_list else None
+        # Normalización de términos en español y códigos en BD
+        estado_map = {
+            'pagada': 'PAGADA', 'pagadas': 'PAGADA', 'pagaron': 'PAGADA',
+            'confirmada': 'CONFIRMADA', 'confirmadas': 'CONFIRMADA', 'confirmaron': 'CONFIRMADA',
+            'completada': 'COMPLETADA', 'completadas': 'COMPLETADA', 'finalizada': 'COMPLETADA',
+        }
+        if estado_param:
+            estados = []
+            for token in estado_param.split(','):
+                t = token.strip().lower()
+                if not t:
+                    continue
+                estados.append(estado_map.get(t, t.upper()))
+            # validar valores permitidos, fallback a lista por defecto si quedaron vacíos
+            estados_validos = [e for e in estados if e in ['PAGADA', 'CONFIRMADA', 'COMPLETADA']]
+            if not estados_validos:
+                estados_validos = ['CONFIRMADA', 'COMPLETADA', 'PAGADA']
+        else:
+            estados_validos = ['CONFIRMADA', 'COMPLETADA', 'PAGADA']
+
         # Query de usuarios con reservas
-        filtros_reserva_clientes = Q(reservas__estado__in=['CONFIRMADA', 'COMPLETADA', 'PAGADA'])
+        filtros_reserva_clientes = Q(reservas__estado__in=estados_validos)
+        if fecha_inicio:
+            filtros_reserva_clientes &= Q(reservas__fecha__gte=fecha_inicio)
+        if fecha_fin:
+            filtros_reserva_clientes &= Q(reservas__fecha__lte=fecha_fin)
+        # Filtro por ubicación (aplica a paquete o servicio de la reserva)
+        if departamento:
+            filtros_reserva_clientes &= (
+                Q(reservas__paquete__departamento__icontains=departamento) |
+                Q(reservas__servicio__departamento__icontains=departamento)
+            )
+        if ciudad:
+            filtros_reserva_clientes &= (
+                Q(reservas__paquete__ciudad__icontains=ciudad) |
+                Q(reservas__servicio__ciudad__icontains=ciudad)
+            )
         
         usuarios = Usuario.objects.annotate(
             num_reservas=Count('reservas', filter=filtros_reserva_clientes),
+            reservas_pagadas=Count('reservas', filter=filtros_reserva_clientes & Q(reservas__estado='PAGADA')),
+            reservas_confirmadas=Count('reservas', filter=filtros_reserva_clientes & Q(reservas__estado='CONFIRMADA')),
+            reservas_completadas=Count('reservas', filter=filtros_reserva_clientes & Q(reservas__estado='COMPLETADA')),
+            ultima_compra=Max('reservas__fecha', filter=filtros_reserva_clientes),
             # Total gastado en USD (convirtiendo BOB)
             total_gastado_usd=Sum(
                 Case(
@@ -674,12 +734,24 @@ def generar_reporte_clientes(request):
                 'nombre': usuario.nombre,
                 'email': usuario.user.email if usuario.user else 'N/A',
                 'num_reservas': usuario.num_reservas,
+                'reservas_pagadas': getattr(usuario, 'reservas_pagadas', 0) or 0,
+                'reservas_confirmadas': getattr(usuario, 'reservas_confirmadas', 0) or 0,
+                'reservas_completadas': getattr(usuario, 'reservas_completadas', 0) or 0,
+                'ultima_compra': getattr(usuario, 'ultima_compra', None),
                 'total_gastado_usd': float(usuario.total_gastado_usd or 0),
                 'total_gastado_bob': float(usuario.total_gastado_bob or 0),
                 'tipo': 'VIP' if usuario.num_reservas >= 6 else ('Recurrente' if usuario.num_reservas >= 2 else 'Nuevo')
             })
         
-        filtros = {'tipo_cliente': tipo_cliente}
+        filtros = {
+            'tipo_cliente': tipo_cliente,
+            'moneda': moneda,
+            'fecha_inicio': fecha_inicio,
+            'fecha_fin': fecha_fin,
+            'estado': ','.join(estados_validos),
+            'departamento': departamento,
+            'ciudad': ciudad
+        }
         
         # Generar según formato
         if formato == 'pdf':

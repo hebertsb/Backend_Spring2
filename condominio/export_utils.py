@@ -8,7 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from openpyxl import Workbook
@@ -297,7 +297,8 @@ class ExportadorReportesPDF:
             
             for cliente in clientes[:50]:  # Limitar a 50 clientes por página
                 ultima_compra = cliente.get('ultima_compra')
-                if isinstance(ultima_compra, datetime):
+                # Aceptar tanto datetime como date
+                if isinstance(ultima_compra, (datetime, date)):
                     ultima_compra = ultima_compra.strftime('%d/%m/%Y')
                 
                 data_clientes.append([
@@ -309,8 +310,9 @@ class ExportadorReportesPDF:
                     str(ultima_compra) if ultima_compra else 'N/A'
                 ])
             
+            # Ajuste de anchos: dar más espacio al Email
             table_clientes = Table(data_clientes, colWidths=[
-                1.5*inch, 1*inch, 1.2*inch, 0.8*inch, 1*inch, 1*inch
+                1.6*inch, 2.0*inch, 1.2*inch, 0.8*inch, 1.0*inch, 1.2*inch
             ])
             table_clientes.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498DB')),
@@ -771,10 +773,33 @@ class ExportadorReportesExcel:
         # Información
         ws['A3'] = f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
         ws['A4'] = f"Total clientes: {reporte_data.get('cantidad_clientes', 0)}"
+        # Filtros aplicados visibles
+        filtros = reporte_data.get('filtros_aplicados', {})
+        fila_info = 5
+        if filtros:
+            moneda = filtros.get('moneda')
+            if moneda:
+                ws[f'A{fila_info}'] = f"Moneda: {moneda}"
+                fila_info += 1
+            fi = filtros.get('fecha_inicio')
+            ff = filtros.get('fecha_fin')
+            if fi or ff:
+                ws[f'A{fila_info}'] = f"Período: {fi or 'N/A'} - {ff or 'N/A'}"
+                fila_info += 1
+            dep = filtros.get('departamento')
+            if dep:
+                ws[f'A{fila_info}'] = f"Departamento: {dep}"
+                fila_info += 1
+            est = filtros.get('estado')
+            if est:
+                ws[f'A{fila_info}'] = f"Estados: {est}"
+                fila_info += 1
         
         # Encabezados
-        headers = ['Cliente', 'Email', 'Total Gastado (Bs)', 'Reservas', 
-                   'Reservas Pagadas', 'Ticket Promedio (Bs)', 'Última Compra']
+        simbolo = self.simbolo_moneda
+        estado_label = reporte_data.get('estado_label') or 'Reservas (Filtro)'
+        headers = ['Cliente', 'Email', f'Total Gastado ({simbolo})', 'Reservas',
+                   estado_label, f'Ticket Promedio ({simbolo})', 'Última Compra']
         for col_num, header in enumerate(headers, 1):
             ws.cell(row=6, column=col_num, value=header)
         self._aplicar_estilo_header(ws, 6, len(headers))
@@ -791,7 +816,7 @@ class ExportadorReportesExcel:
                 ws.cell(row=row_num, column=3).number_format = '#,##0.00'
             
             ws.cell(row=row_num, column=4, value=cliente.get('cantidad_reservas', 0))
-            ws.cell(row=row_num, column=5, value=cliente.get('reservas_pagadas', 0))
+            ws.cell(row=row_num, column=5, value=cliente.get('reservas_estado', cliente.get('reservas_pagadas', 0)))
             
             ticket_promedio = cliente.get('ticket_promedio')
             if ticket_promedio:
@@ -1116,6 +1141,8 @@ class ExportadorReportesWord:
         Returns:
             BytesIO: Buffer con el documento Word generado
         """
+        
+        
         doc = Document()
         
         # Configurar márgenes
@@ -1205,7 +1232,8 @@ class ExportadorReportesWord:
             run.font.color.rgb = self.colores['subtitulo']
         
         # Tabla de resumen (2 columnas)
-        table_resumen = doc.add_table(rows=4, cols=2)
+        # Iniciamos con 1 fila (encabezados) y luego vamos agregando filas por cada dato
+        table_resumen = doc.add_table(rows=1, cols=2)
         table_resumen.style = 'Light Grid Accent 1'
         table_resumen.alignment = WD_TABLE_ALIGNMENT.CENTER
         
@@ -1215,13 +1243,13 @@ class ExportadorReportesWord:
         headers_resumen[1].text = 'Valor'
         
         for cell in headers_resumen:
-            cell_paragraph = cell.paragraphs[0]
-            cell_run = cell_paragraph.runs[0]
-            cell_run.font.bold = True
-            cell_run.font.color.rgb = RGBColor(255, 255, 255)
             shading_elm = parse_xml(r'<w:shd {} w:fill="2980B9"/>'.format(nsdecls('w')))
             cell._tc.get_or_add_tcPr().append(shading_elm)
+            cell_paragraph = cell.paragraphs[0]
             cell_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in cell_paragraph.runs:
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(255, 255, 255)
         
         # Datos de resumen
         moneda = filtros.get('moneda', 'USD')
@@ -1234,16 +1262,21 @@ class ExportadorReportesWord:
             ['Promedio por Cliente', f"{simbolo}{resumen.get('promedio_por_cliente', 0):,.2f}"],
         ]
         
-        for i, (label, value) in enumerate(datos_resumen, start=1):
-            row_cells = table_resumen.rows[i].cells
-            row_cells[0].text = label
-            row_cells[1].text = value
+        for idx, (label, value) in enumerate(datos_resumen, start=1):
+            # Agregar una nueva fila para cada par (label, value)
+            row_cells = table_resumen.add_row().cells
             
-            # Negrita en etiquetas
-            for run in row_cells[0].paragraphs[0].runs:
-                run.font.bold = True
-            # Centrar valores
-            row_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Etiqueta (negrita)
+            label_paragraph = row_cells[0].paragraphs[0] if row_cells[0].paragraphs else row_cells[0].add_paragraph('')
+            label_paragraph.text = ''
+            label_run = label_paragraph.add_run(label)
+            label_run.font.bold = True
+            
+            # Valor (centrado)
+            value_paragraph = row_cells[1].paragraphs[0] if row_cells[1].paragraphs else row_cells[1].add_paragraph('')
+            value_paragraph.text = ''
+            value_paragraph.add_run(value)
+            value_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         doc.add_paragraph()  # Espacio
         
@@ -1269,40 +1302,35 @@ class ExportadorReportesWord:
             header_cells = table_clientes.rows[0].cells
             for i, header in enumerate(headers):
                 header_cells[i].text = header
-                cell_paragraph = header_cells[i].paragraphs[0]
-                cell_run = cell_paragraph.runs[0]
-                cell_run.font.bold = True
-                cell_run.font.color.rgb = RGBColor(255, 255, 255)
-                cell_run.font.size = Pt(10)
                 
                 # Fondo azul para encabezados
-                shading_elm = header_cells[i]._element.get_or_add_tcPr().get_or_add_shd()
-                shading_elm.set_val("clear")
-                shading_elm.set_fill("2980B9")  # Azul #2980B9
+                shading_elm = parse_xml(r'<w:shd {} w:fill="2980B9"/>'.format(nsdecls('w')))
+                header_cells[i]._tc.get_or_add_tcPr().append(shading_elm)
                 
+                cell_paragraph = header_cells[i].paragraphs[0]
                 cell_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in cell_paragraph.runs:
+                    run.font.bold = True
+                    run.font.color.rgb = RGBColor(255, 255, 255)
+                    run.font.size = Pt(10)
             
             # Datos de clientes
             for cliente in clientes:
                 row_cells = table_clientes.add_row().cells
                 
                 # Nombre del cliente
-                nombre_cliente = cliente.get('cliente__user__first_name', '') + ' ' + cliente.get('cliente__user__last_name', '')
-                row_cells[0].text = nombre_cliente.strip() or 'N/A'
+                nombre_cliente = cliente.get('cliente__nombre', 'N/A')
+                row_cells[0].text = nombre_cliente
                 
                 # Email
                 row_cells[1].text = cliente.get('cliente__user__email', 'N/A')
                 
                 # Total reservas
-                row_cells[2].text = str(cliente.get('total_reservas', 0))
+                row_cells[2].text = str(cliente.get('cantidad_reservas', 0))
                 row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 
                 # Total gastado
-                if moneda == 'BOB':
-                    total = cliente.get('total_gastado_bob', 0) or cliente.get('total_gastado', 0)
-                else:
-                    total = cliente.get('total_gastado_usd', 0) or (cliente.get('total_gastado', 0) / 6.96)
-                
+                total = cliente.get('total_gastado', 0)
                 row_cells[3].text = f"{simbolo}{float(total):,.2f}"
                 row_cells[3].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
                 
@@ -1865,7 +1893,8 @@ def exportar_reporte_pdf(datos, tipo_reporte, filtros):
                 'total_gastado': total_gastado,
                 'cantidad_reservas': cliente.get('num_reservas', 0),
                 'ticket_promedio': total_gastado / cliente.get('num_reservas', 1) if cliente.get('num_reservas', 0) > 0 else 0,
-                'ultima_compra': 'N/A',  # Se puede agregar después si es necesario
+                # Pasar la última compra real para que el generador PDF la formatee
+                'ultima_compra': cliente.get('ultima_compra'),
                 'tipo_cliente': cliente.get('tipo', 'N/A')
             })
         
@@ -1982,6 +2011,21 @@ def exportar_reporte_excel(datos, tipo_reporte, filtros):
     elif tipo_reporte == 'clientes':
         # Obtener moneda de filtros
         moneda = filtros.get('moneda', 'USD').upper()
+        estados_raw = filtros.get('estado')
+        if estados_raw:
+            estados = [e.strip().upper() for e in estados_raw.split(',') if e.strip()]
+        else:
+            estados = ['CONFIRMADA', 'COMPLETADA', 'PAGADA']
+        # Etiqueta dinámica para la columna de reservas por estado
+        estado_label_map = {
+            'PAGADA': 'Reservas Pagadas',
+            'CONFIRMADA': 'Reservas Confirmadas',
+            'COMPLETADA': 'Reservas Completadas',
+        }
+        if len(estados) == 1 and estados[0] in estado_label_map:
+            estado_label = estado_label_map[estados[0]]
+        else:
+            estado_label = 'Reservas (Filtro)'
         
         # Preparar clientes con moneda correcta
         clientes_formateados = []
@@ -1991,12 +2035,31 @@ def exportar_reporte_excel(datos, tipo_reporte, filtros):
             else:
                 total_gastado = cliente.get('total_gastado_usd', 0)
             
+            # Seleccionar métrica por estado
+            if len(estados) == 1:
+                est = estados[0]
+                if est == 'PAGADA':
+                    reservas_estado = cliente.get('reservas_pagadas', 0)
+                elif est == 'CONFIRMADA':
+                    reservas_estado = cliente.get('reservas_confirmadas', 0)
+                elif est == 'COMPLETADA':
+                    reservas_estado = cliente.get('reservas_completadas', 0)
+                else:
+                    reservas_estado = cliente.get('num_reservas', 0)
+            else:
+                reservas_estado = cliente.get('num_reservas', 0)
+
             clientes_formateados.append({
                 'cliente__nombre': cliente.get('nombre', 'N/A'),
                 'cliente__user__email': cliente.get('email', 'N/A'),
                 'total_gastado': total_gastado,
                 'cantidad_reservas': cliente.get('num_reservas', 0),
+                'reservas_pagadas': cliente.get('reservas_pagadas', 0),
+                'reservas_confirmadas': cliente.get('reservas_confirmadas', 0),
+                'reservas_completadas': cliente.get('reservas_completadas', 0),
+                'reservas_estado': reservas_estado,
                 'ticket_promedio': total_gastado / cliente.get('num_reservas', 1) if cliente.get('num_reservas', 0) > 0 else 0,
+                'ultima_compra': cliente.get('ultima_compra'),
                 'tipo_cliente': cliente.get('tipo', 'N/A')
             })
         
@@ -2004,6 +2067,7 @@ def exportar_reporte_excel(datos, tipo_reporte, filtros):
             'clientes': clientes_formateados,
             'cantidad_clientes': len(datos),
             'filtros_aplicados': filtros,
+            'estado_label': estado_label,
             'total_registros': len(datos),
             'fecha_generacion': datetime.now().strftime('%d/%m/%Y %H:%M')
         }
@@ -2128,6 +2192,8 @@ def exportar_reporte_docx(datos, tipo_reporte, filtros):
                 'cliente__user__email': cliente.get('email', 'N/A'),
                 'total_gastado': total_gastado,
                 'cantidad_reservas': num_reservas,
+                'reservas_pagadas': cliente.get('reservas_pagadas', 0),
+                'ultima_compra': cliente.get('ultima_compra'),
                 'ticket_promedio': total_gastado / num_reservas if num_reservas > 0 else 0,
                 'tipo_cliente': cliente.get('tipo', 'N/A')
             })
