@@ -662,6 +662,25 @@ class ReservaViewSet(AuditedModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+    def perform_create(self, serializer):
+        """Crear la reserva y registrar Bitacora incluyendo paquete_id/servicio_id si aplica."""
+        instance = serializer.save()
+        try:
+            # Intentar obtener ids desde la instancia o desde el payload
+            paquete_id = getattr(getattr(instance, 'paquete', None), 'id', None) or getattr(instance, 'paquete_id', None) or self.request.data.get('paquete_id')
+            servicio_id = getattr(getattr(instance, 'servicio', None), 'id', None) or getattr(instance, 'servicio_id', None) or self.request.data.get('servicio_id')
+
+            descripcion = f"Reserva creado id={getattr(instance, 'id', None)}"
+            if paquete_id:
+                descripcion += f" paquete_id={paquete_id}"
+            if servicio_id:
+                descripcion += f" servicio_id={servicio_id}"
+
+            log_bitacora(self.request, 'Crear Reserva', descripcion)
+        except Exception:
+            # No bloquear creación por errores de bitácora
+            pass
+
     # ===============================
     # FILTRAR SEGÚN USUARIO AUTENTICADO
     # ===============================

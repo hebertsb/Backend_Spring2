@@ -52,6 +52,46 @@ class ReservaConServiciosSerializer(serializers.ModelSerializer):
         reserva = Reserva.objects.create(**validated_data)
         for servicio_data in servicios_data:
             ReservaServicio.objects.create(reserva=reserva, **servicio_data)
+
+        # Si hay 2 o más servicios, convertirlo en un Paquete personalizado
+        try:
+            if len(servicios_data) >= 2:
+                from decimal import Decimal
+
+                paquete = Paquete.objects.create(
+                    nombre=f"Paquete Personalizado #{reserva.id}",
+                    es_personalizado=True,
+                    descripcion="Paquete personalizado generado a partir de múltiples servicios seleccionados por el usuario.",
+                    duracion=f"{len(servicios_data)} actividades",
+                    precio_base=Decimal(str(reserva.total)),
+                    precio_bob=Decimal(str(reserva.total)) if str(reserva.moneda).upper() == 'BOB' else None,
+                    # Defaults del modelo cubren cupos y estado
+                    fecha_inicio=reserva.fecha,
+                    fecha_fin=reserva.fecha,
+                    punto_salida="A definir",
+                )
+
+                # Asociar los servicios seleccionados al paquete (itinerario simple)
+                for idx, sdata in enumerate(servicios_data, start=1):
+                    try:
+                        PaqueteServicio.objects.create(
+                            paquete=paquete,
+                            # sdata['servicio'] ya es una instancia de Servicio validada por DRF
+                            servicio=sdata.get('servicio'),
+                            dia=idx,
+                            orden=1,
+                        )
+                    except Exception:
+                        # No bloquear por un servicio individual
+                        pass
+
+                # Vincular la reserva con el paquete personalizado
+                reserva.paquete = paquete
+                reserva.save(update_fields=['paquete'])
+        except Exception:
+            # No bloquear la creación de la reserva si falla la generación del paquete
+            pass
+
         return reserva
 
 
@@ -65,7 +105,8 @@ class ReservaSalidaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Reserva
-        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'servicios_reservados']
+        # Incluir 'paquete' para que el frontend pueda redirigir al detalle si se generó un paquete personalizado
+        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'paquete', 'servicios_reservados']
 
 
 # =====================================================
