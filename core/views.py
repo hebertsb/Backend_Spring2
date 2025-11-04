@@ -12,7 +12,9 @@ from dotenv import load_dotenv
 from rest_framework import status
 from django.core.cache import cache
 from .openai_client import get_openai_client  # ← cliente centralizado
+import logging
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 url_frontend = os.getenv("URL_FRONTEND", "http://127.0.0.1:3000")
@@ -36,9 +38,12 @@ def redirect_to_deep_link(url):
 @api_view(["GET"])
 def obtener_recomendacion(request):
     """Obtiene la recomendación generada para una sesión de pago específica."""
-    session_id = request.query_params.get("session_id")  # ✅ Cambiado a 'session_id'
+    session_id = request.query_params.get("session_id")
+    
+    logger.info(f"🔍 Solicitud de recomendación - session_id: {session_id}")
     
     if not session_id:
+        logger.warning("⚠️ Recomendación solicitada sin session_id")
         return Response(
             {"error": "Se requiere el parámetro session_id"}, 
             status=status.HTTP_400_BAD_REQUEST
@@ -49,11 +54,16 @@ def obtener_recomendacion(request):
     recommendation = cache.get(cache_key)
     
     if recommendation is None:
+        logger.warning(f"❌ Recomendación no encontrada en cache - key: {cache_key}")
         return Response(
-            {"error": "No se encontró una recomendación para esta sesión"}, 
+            {
+                "error": "No se encontró una recomendación para esta sesión",
+                "message": "La recomendación aún se está generando o ha expirado. Por favor, intenta de nuevo en unos segundos."
+            }, 
             status=status.HTTP_404_NOT_FOUND
         )
     
+    logger.info(f"✅ Recomendación encontrada para session_id: {session_id}")
     return Response({
         "recommendation": recommendation,
         "session_id": session_id
@@ -70,7 +80,10 @@ def crear_checkout_session(request):
         reserva_id = data.get("reserva_id")  # opcional, para enlazar con una reserva ya creada
         cantidad = int(data.get("cantidad", 1))
 
+        logger.info(f"💳 Creando checkout - nombre: {nombre}, precio: {precio}, reserva_id: {reserva_id}")
+
         if precio <= 0:
+            logger.error(f"❌ Precio inválido: {precio}")
             return Response({"error": "Precio inválido"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Construir URLs de retorno al FRONTEND (Netlify/Local)
@@ -101,11 +114,12 @@ def crear_checkout_session(request):
             },
         )
 
-        return Response({"checkout_url": session.url})
+        logger.info(f"✅ Checkout creado exitosamente - session_id: {session.id}, url: {session.url}")
+        return Response({"checkout_url": session.url, "session_id": session.id})
 
     except Exception as e:
-        print("❌ Error Stripe:", e)
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # ✅ DENTRO DEL except
+        logger.error(f"❌ Error creando checkout Stripe: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # =====================================================
 # CHECKOUT PARA RESERVA (WEB) – desde ID de reserva
@@ -125,6 +139,7 @@ def crear_checkout_reserva(request):
     try:
         # Validar configuración
         if not settings.STRIPE_SECRET_KEY:
+            logger.error("❌ STRIPE_SECRET_KEY no configurado")
             return Response({
                 "error": "Stripe no está configurado (STRIPE_SECRET_KEY ausente)"
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -135,28 +150,37 @@ def crear_checkout_reserva(request):
 
         data = request.data or {}
         reserva_id = data.get("reserva_id") or request.query_params.get("reserva_id")
+        
+        logger.info(f"📝 Solicitud crear checkout reserva - reserva_id: {reserva_id}, data: {data}")
+        
         if not reserva_id:
+            logger.warning("⚠️ Solicitud sin reserva_id")
             return Response({"error": "Debe enviar 'reserva_id'"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Buscar reserva
         try:
             reserva = Reserva.objects.get(id=reserva_id)
+            logger.info(f"✅ Reserva encontrada: ID={reserva.id}, total={reserva.total}, moneda={reserva.moneda}")
         except Reserva.DoesNotExist:
+            logger.error(f"❌ Reserva {reserva_id} no encontrada en BD")
             return Response({"error": f"Reserva {reserva_id} no encontrada"}, status=status.HTTP_404_NOT_FOUND)
 
         # Autorización básica: dueño o staff
         perfil = getattr(request.user, 'perfil', None)
         if request.user.is_authenticated and not request.user.is_staff:
             if not perfil or reserva.cliente_id != perfil.id:
+                logger.warning(f"⚠️ Usuario sin permisos para reserva {reserva_id}")
                 return Response({"error": "No tienes permiso para esta reserva"}, status=status.HTTP_403_FORBIDDEN)
 
         # Preparar monto en centavos
         try:
             amount_cents = int(Decimal(reserva.total) * 100)
-        except Exception:
+        except Exception as e:
+            logger.error(f"❌ Error convirtiendo total a centavos: {e}")
             return Response({"error": "Total inválido en la reserva"}, status=status.HTTP_400_BAD_REQUEST)
 
         if amount_cents <= 0:
+            logger.error(f"❌ Total de reserva inválido: {amount_cents} centavos")
             return Response({"error": "El total de la reserva debe ser mayor a 0"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Moneda: mapear a valores aceptados por Stripe
@@ -204,10 +228,13 @@ def crear_checkout_reserva(request):
                     'fecha_pago': date.today(),
                 }
             )
-        except Exception:
+            logger.info(f"📝 Pago registrado como pendiente para reserva {reserva.id}")
+        except Exception as e:
             # No hacer fallar el checkout por errores no críticos de persistencia
+            logger.warning(f"⚠️ No se pudo registrar pago en BD: {e}")
             pass
 
+        logger.info(f"✅ Checkout reserva creado - session_id: {session.id}, reserva_id: {reserva.id}, url: {session.url}")
         return Response({
             "checkout_url": session.url,
             "session_id": session.id,
@@ -217,7 +244,7 @@ def crear_checkout_reserva(request):
         }, status=status.HTTP_200_OK)
 
     except Exception as e:
-        print("❌ Error Stripe (reserva web):", e)
+        logger.error(f"❌ Error Stripe (reserva web): {e}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
