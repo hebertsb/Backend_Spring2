@@ -134,8 +134,11 @@ def get_database_url() -> str:
     
     return DATABASE_URL
 
+
+######restarurancion de base de emergencia
+
 def restore_postgresql(database_url: str, postgres_dump: Path):
-    """Restaura un dump de PostgreSQL (MEJORA NUEVA + tu enfoque DROP DATABASE)"""
+    """Restaura un dump de PostgreSQL cuando la base YA ESTÁ BORRADA"""
     try:
         parsed = urlparse(database_url)
         pg_user = parsed.username
@@ -146,44 +149,77 @@ def restore_postgresql(database_url: str, postgres_dump: Path):
         
         os.environ["PGPASSWORD"] = pg_password or ""
 
-        print(f"🧹 Recreando base de datos '{pg_db}'...")
-        
-        # 1. Desconectar todas las conexiones activas
+        print(f"🧹 Restaurando base de datos '{pg_db}' (que fue borrada)...")
+
+        # 1. ✅ VERIFICAR si la base de datos existe
+        print("🔍 Verificando si la base de datos existe...")
+        check_db = subprocess.run([
+            "psql",
+            "-U", pg_user,
+            "-h", pg_host,
+            "-p", str(pg_port),
+            "-d", "postgres",
+            "-c", f"SELECT 1 FROM pg_database WHERE datname = '{pg_db}';"
+        ], capture_output=True, text=True)
+
+        db_exists = "1" in check_db.stdout
+
+        if db_exists:
+            print("✅ La base de datos existe, procediendo con limpieza...")
+            # 2A. Si EXISTE: limpiar conexiones y dropear
+            subprocess.run([
+                "psql",
+                "-U", pg_user,
+                "-h", pg_host,
+                "-p", str(pg_port),
+                "-d", "postgres",
+                "-c", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{pg_db}';"
+            ], check=False)
+
+            subprocess.run([
+                "psql",
+                "-U", pg_user,
+                "-h", pg_host,
+                "-p", str(pg_port),
+                "-d", "postgres",
+                "-c", f"DROP DATABASE {pg_db};"
+            ], check=True)
+        else:
+            print("⚠️ La base de datos NO existe, creándola...")
+
+        # 3. ✅ CREAR la base de datos (si no existe o después de dropear)
+        print("🆕 Creando base de datos...")
         subprocess.run([
             "psql",
             "-U", pg_user,
-            "-h", pg_host, 
+            "-h", pg_host,
             "-p", str(pg_port),
             "-d", "postgres",
-            "-c", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{pg_db}';"
-        ], check=False)
-
-        # 2. Dropear y recrear la base de datos )
-        subprocess.run([
-            "psql", 
-            "-U", pg_user,
-            "-h", pg_host,
-            "-p", str(pg_port), 
-            "-d", "postgres",
-            "-c", f"DROP DATABASE IF EXISTS {pg_db}; CREATE DATABASE {pg_db};"
+            "-c", f"CREATE DATABASE {pg_db};"
         ], check=True)
 
-        # 3. Restaurar el dump 
-        print("🔄 Restaurando datos...")
+        # 4. ✅ Restaurar el dump
+        print("🔄 Restaurando datos desde backup...")
         result = subprocess.run([
             "psql",
             "-U", pg_user,
             "-h", pg_host,
             "-p", str(pg_port),
-            "-d", pg_db, 
+            "-d", pg_db,
             "-f", str(postgres_dump)
         ], check=True)
 
-        print("✅ Base de datos PostgreSQL restaurada correctamente.")
+        print("✅ Base de datos PostgreSQL restaurada correctamente desde backup.")
 
     except subprocess.CalledProcessError as e:
         print(f"❌ Error al restaurar PostgreSQL: {e}")
+        if e.stderr:
+            print(f"❌ Detalles: {e.stderr.decode()}")
         raise
+
+
+#########################
+
 
 def run_django_migrations():
     """Ejecuta las migraciones de Django después de restaurar (MEJORA NUEVA)"""
