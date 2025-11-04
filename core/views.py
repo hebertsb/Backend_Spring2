@@ -248,12 +248,25 @@ def verificar_pago(request):
 
         # NOTA: Funcionalidad de suscripciones deshabilitada (modelo Suscripcion eliminado)
 
+        # Nota: Stripe devuelve amount_total en centavos.
+        # Para evitar confusiones en el frontend, devolvemos ambos:
+        # - monto_total_centavos: valor crudo de Stripe
+        # - monto_total: valor en unidades (dividido entre 100)
+        reserva_id_meta = metadata.get("reserva_id")
+        monto_total_cent = session.amount_total or 0
+        try:
+            monto_total_unidad = (monto_total_cent or 0) / 100
+        except Exception:
+            monto_total_unidad = None
+
         return Response({
             "pago_exitoso": pago_exitoso,
             "cliente_email": session.customer_details.email if session.customer_details else None,
-            "monto_total": session.amount_total,
-            "moneda": session.currency,
+            "monto_total_centavos": monto_total_cent,
+            "monto_total": monto_total_unidad,
+            "moneda": (session.currency or '').upper(),
             "payment_type": payment_type,
+            "reserva_id": reserva_id_meta,
         })
 
     except Exception as e:

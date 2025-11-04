@@ -592,6 +592,26 @@ class PaqueteViewSet(viewsets.ReadOnlyModelViewSet):
             'itinerario': list(itinerario.values())
         })
 
+    @action(detail=False, methods=['get'], url_path='mis_paquetes',
+            permission_classes=[permissions.IsAuthenticated])
+    def mis_paquetes(self, request):
+        """Devuelve los paquetes asociados al usuario autenticado.
+
+        Criterio: paquetes para los que el usuario tiene al menos una Reserva
+        (Reserva.paquete != NULL) como cliente. No modifica ni interfiere con
+        otros casos de uso (paquetes públicos, reservas individuales, etc.).
+        """
+        perfil = getattr(request.user, 'perfil', None)
+        if not perfil:
+            return Response([], status=200)
+
+        qs = self.get_queryset().filter(
+            reservas__cliente=perfil
+        ).distinct().order_by('-created_at')
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
 
 # =====================================================
 # 🎟️ CUPON
