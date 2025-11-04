@@ -95,6 +95,13 @@ CORS_ALLOWED_ORIGINS = [
 # For development you can also allow all origins (use carefully):
 CORS_ALLOW_ALL_ORIGINS = True  # ✅ Habilitado para pruebas locales
 
+# ----------------------------------------------------------------------------------
+# CONFIGURACIÓN DE REDIRECCIONES SEGURAS PARA DEEP LINKS MÓVILES
+# ----------------------------------------------------------------------------------
+# Permitir redirecciones a esquemas personalizados para app móvil
+# Necesario para que los callbacks de Stripe puedan redirigir a turismoapp://
+ALLOWED_REDIRECT_SCHEMES = ['http', 'https', 'turismoapp']
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

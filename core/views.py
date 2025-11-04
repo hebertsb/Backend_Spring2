@@ -1,6 +1,6 @@
 # core/views.py
 from datetime import timedelta, timezone
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 import stripe
 from django.conf import settings
 from condominio.models import Paquete, Servicio
@@ -409,7 +409,6 @@ def pago_exitoso_mobile(request):
     4. Crea registro de pago
     5. Redirige a deep link: turismoapp://payment-success?...
     """
-    from django.shortcuts import redirect
     from condominio.models import Reserva, Pago
     from datetime import date
     from decimal import Decimal
@@ -426,7 +425,7 @@ def pago_exitoso_mobile(request):
     # Validar parámetros
     if not session_id or not reserva_id:
         print(f"❌ Error: Faltan parámetros")
-        return redirect(f"turismoapp://payment-error?error=missing_params")
+        return HttpResponseRedirect(f"turismoapp://payment-error?error=missing_params")
     
     try:
         # Verificar sesión con Stripe API
@@ -482,12 +481,12 @@ def pago_exitoso_mobile(request):
                 print(f"   🚀 Redirigiendo a app: {deep_link[:80]}...")
                 print(f"{'='*60}\n")
                 
-                # Redirigir a la app móvil
-                return redirect(deep_link)
+                # Redirigir a la app móvil usando HttpResponseRedirect
+                return HttpResponseRedirect(deep_link)
                 
             except Reserva.DoesNotExist:
                 print(f"   ❌ Error: Reserva {reserva_id} no encontrada")
-                return redirect(
+                return HttpResponseRedirect(
                     f"turismoapp://payment-error"
                     f"?error=reserva_not_found"
                     f"&reserva_id={reserva_id}"
@@ -496,7 +495,7 @@ def pago_exitoso_mobile(request):
         elif session.payment_status == "unpaid":
             # Pago no completado
             print(f"   ⚠️  Pago no completado: {session.payment_status}")
-            return redirect(
+            return HttpResponseRedirect(
                 f"turismoapp://payment-pending"
                 f"?session_id={session_id}"
                 f"&reserva_id={reserva_id}"
@@ -506,7 +505,7 @@ def pago_exitoso_mobile(request):
         else:
             # Otro estado
             print(f"   ⚠️  Estado inesperado: {session.payment_status}")
-            return redirect(
+            return HttpResponseRedirect(
                 f"turismoapp://payment-error"
                 f"?error=unexpected_status"
                 f"&status={session.payment_status}"
@@ -519,7 +518,7 @@ def pago_exitoso_mobile(request):
         traceback.print_exc()
         print(f"{'='*60}\n")
         
-        return redirect(
+        return HttpResponseRedirect(
             f"turismoapp://payment-error"
             f"?error=processing_error"
             f"&session_id={session_id}"
@@ -534,7 +533,6 @@ def pago_cancelado_mobile(request):
     
     GET /api/pago-cancelado-mobile/?reserva_id=35
     """
-    from django.shortcuts import redirect
     from condominio.models import Reserva
     
     reserva_id = request.GET.get("reserva_id")
@@ -563,10 +561,10 @@ def pago_cancelado_mobile(request):
         print(f"   🚀 Redirigiendo a app: {deep_link}")
         print(f"{'='*60}\n")
         
-        return redirect(deep_link)
+        return HttpResponseRedirect(deep_link)
     
     except Exception as e:
         print(f"   ❌ Error: {str(e)}")
         print(f"{'='*60}\n")
         
-        return redirect(f"turismoapp://payment-cancel?status=cancelled")
+        return HttpResponseRedirect(f"turismoapp://payment-cancel?status=cancelled")
