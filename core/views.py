@@ -1,9 +1,10 @@
 # core/views.py
 from datetime import timedelta, timezone
+from django.contrib.auth import get_user_model
 from django.http import HttpResponse, HttpResponseRedirect
 import stripe
 from django.conf import settings
-from condominio.models import Paquete, Servicio
+from condominio.models import Paquete, Servicio, Suscripcion
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import os
@@ -31,10 +32,12 @@ def redirect_to_deep_link(url):
     response['Location'] = url
     return response
 
+
 @api_view(["GET"])
 def obtener_recomendacion(request):
     """Obtiene la recomendación generada para una sesión de pago específica."""
-    session_id = request.query_params.get("session_id")
+    session_id = request.query_params.get("session_id")  # ✅ Cambiado a 'session_id'
+    
     if not session_id:
         return Response(
             {"error": "Se requiere el parámetro session_id"}, 
@@ -55,6 +58,7 @@ def obtener_recomendacion(request):
         "recommendation": recommendation,
         "session_id": session_id
     })
+
 
 # @permission_classes([IsAuthenticated])
 @api_view(["POST"])
@@ -101,7 +105,7 @@ def crear_checkout_session(request):
 
     except Exception as e:
         print("❌ Error Stripe:", e)
-    return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # ✅ DENTRO DEL except
 
 # =====================================================
 # CHECKOUT PARA RESERVA (WEB) – desde ID de reserva
@@ -216,49 +220,9 @@ def crear_checkout_reserva(request):
         print("❌ Error Stripe (reserva web):", e)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# =====================================================
-# SUSCRIPCIONES - ENDPOINT DESHABILITADO
-# =====================================================
-@api_view(["POST"])
-def crear_checkout_session_suscripcion(request):
-    """
-    Endpoint deshabilitado - Requiere modelos Proveedor y Suscripcion eliminados.
-    """
-    return Response({
-        "error": "Funcionalidad temporalmente deshabilitada. Modelos Proveedor y Suscripcion fueron eliminados."
-    }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
-@api_view(["GET"])
-def verificar_pago(request):
-    session_id = request.GET.get("session_id")
 
-    if not session_id:
-        return Response({"error": "Falta session_id"}, status=400)
 
-    try:
-        session = stripe.checkout.Session.retrieve(session_id)
-
-        pago_exitoso = session.payment_status == "paid"
-
-        # extraer metadata
-        metadata = getattr(session, "metadata", {}) or {}
-        payment_type = metadata.get("payment_type", "venta")
-        usuario_id_meta = metadata.get("usuario_id", None)
-        titulo_meta = metadata.get("titulo", None)
-
-        # NOTA: Funcionalidad de suscripciones deshabilitada (modelo Suscripcion eliminado)
-
-        return Response({
-            "pago_exitoso": pago_exitoso,
-            "cliente_email": session.customer_details.email if session.customer_details else None,
-            "monto_total": session.amount_total,
-            "moneda": session.currency,
-            "payment_type": payment_type,
-        })
-
-    except Exception as e:
-        print("❌ Error verificando sesión:", e)
-        return Response({"error": str(e)}, status=500)
 
 @api_view(["POST"])
 def chatbot_turismo(request):
@@ -332,16 +296,154 @@ Recuerda: Responde como un asistente amable y profesional de turismo boliviano.
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@api_view(["GET"])
-def verificar_proveedor(request, usuario_id):
-    """
-    Endpoint deshabilitado - Requiere modelo Proveedor eliminado.
-    """
-    return Response({
-        "error": "Funcionalidad temporalmente deshabilitada. Modelo Proveedor fue eliminado.",
-        "existe": False
-    }, status=status.HTTP_501_NOT_IMPLEMENTED)
+# NUEVO: endpoint específico para crear sesión de suscripción
+@api_view(["POST"])
+def crear_checkout_session_suscripcion(request):
+    try:
+        data = request.data
 
+        # Datos enviados desde el frontend
+        nombre = data.get("nombre", "Suscripción")
+        precio = float(data.get("precio", 0))  # ya viene en centavos
+        cantidad = int(data.get("cantidad", 1))
+        usuario_id = data.get("usuario_id")
+        nombre_empresa = data.get("nombre_empresa", "Proveedor sin nombre")
+        descripcion = data.get("descripcion", "")
+        telefono = data.get("telefono", "")
+        sitio_web = data.get("sitio_web", "")
+
+        # Validaciones básicas
+        if not usuario_id:
+            return Response({"error": "Falta usuario_id"}, status=status.HTTP_400_BAD_REQUEST)
+        if precio <= 0:
+            return Response({"error": "Precio inválido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ============================
+        # 1️⃣ Crear Proveedor si no existe
+        # ============================
+        from condominio.models import Usuario, Proveedor, Suscripcion
+        from django.utils import timezone
+        from datetime import timedelta
+
+        try:
+            usuario = Usuario.objects.get(id=usuario_id)
+        except Usuario.DoesNotExist:
+            return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+        proveedor, creado = Proveedor.objects.get_or_create(
+            usuario=usuario,
+            defaults={
+                "nombre_empresa": nombre_empresa,
+                "descripcion": descripcion,
+                "telefono": telefono,
+                "sitio_web": sitio_web,
+            },
+        )
+
+        # ============================
+        # 2️⃣ Crear la sesión de Stripe
+        # ============================
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="payment",
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "bob",
+                        "product_data": {"name": nombre},
+                        "unit_amount": int(precio),
+                    },
+                    "quantity": cantidad,
+                }
+            ],
+            success_url=f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{url_frontend}/pago-cancelado/",
+            metadata={
+                "usuario_id": str(usuario.id),
+                "payment_type": "suscripcion",
+                "titulo": nombre,
+            },
+        )
+
+        # ============================
+        # 3️⃣ Crear la Suscripción
+        # ============================
+        suscripcion = Suscripcion.objects.create(
+            proveedor=proveedor,
+            precio=(precio / 100),  # convertir de centavos a BOB
+            fecha_inicio=timezone.now().date(),
+            fecha_fin=timezone.now().date() + timedelta(days=30),
+            activa=True,
+            stripe_session_id=session.id,
+        )
+
+        print(f"✅ Suscripción creada para {proveedor.nombre_empresa} (ID {suscripcion.id})")
+
+        # ============================
+        # 4️⃣ Generar y guardar recomendación en cache
+        # ============================
+        try:
+            # Importación local para evitar problemas de importación circular
+            from .recommendation_utils import generar_recomendacion_equipaje
+            
+            recomendacion = generar_recomendacion_equipaje(nombre, usuario_id)
+            cache_key = f"recommendation_{session.id}"
+            cache.set(cache_key, recomendacion, timeout=3600)  # 1 hora
+            print(f"💾 Recomendación guardada en cache: {cache_key}")
+        except ImportError:
+            print("⚠️  No se pudo importar recommendation_utils, omitiendo recomendación")
+        except Exception as e:
+            print(f"⚠️  Error generando recomendación: {e}")
+
+        # ============================
+        # 5️⃣ Devolver la URL de Stripe
+        # ============================
+        return Response({
+            "checkout_url": session.url,
+            "session_id": session.id,
+            "suscripcion_id": suscripcion.id,
+            "proveedor_id": proveedor.id,
+        })
+
+    except Exception as e:
+        print("❌ Error Stripe (suscripción manual):", e)
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+@api_view(["GET"])
+def verificar_pago(request):
+    session_id = request.GET.get("session_id")
+
+    if not session_id:
+        return Response({"error": "Falta session_id"}, status=400)
+
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        pago_exitoso = session.payment_status == "paid"
+
+        # extraer metadata
+        metadata = getattr(session, "metadata", {}) or {}
+        payment_type = metadata.get("payment_type", "venta")
+        usuario_id_meta = metadata.get("usuario_id", None)
+        titulo_meta = metadata.get("titulo", None)
+
+        # ✅ CORREGIDO: Solo verificar pago, sin crear suscripción duplicada
+        # La suscripción ya se crea en crear_checkout_session_suscripcion
+        
+        return Response({
+            "pago_exitoso": pago_exitoso,
+            "cliente_email": session.customer_details.email if session.customer_details else None,
+            "monto_total": session.amount_total,
+            "moneda": session.currency,
+            "payment_type": payment_type,
+        })
+
+    except Exception as e:
+        print("❌ Error verificando sesión:", e)
+        return Response({"error": str(e)}, status=500)
+    
 
 # ============================================================================
 # 📱 ENDPOINTS ESPECÍFICOS PARA APP MÓVIL FLUTTER - STRIPE CON DEEP LINKS

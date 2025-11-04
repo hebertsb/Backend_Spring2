@@ -79,7 +79,7 @@ class AuditedModelViewSet(viewsets.ModelViewSet):
             pass
         instance.delete()
 from .models import (
-    Categoria, Servicio, Usuario, Campania, Paquete, PaqueteServicio, Cupon, Reserva, Visitante,
+    Categoria, Proveedor, Servicio, Suscripcion, Usuario, Campania, Paquete, PaqueteServicio, Cupon, Reserva, Visitante,
     ReservaVisitante, CampaniaServicio, Pago, ReglaReprogramacion, 
     HistorialReprogramacion, ConfiguracionGlobalReprogramacion, Reprogramacion
 )
@@ -89,7 +89,7 @@ from .serializer import (
     CampaniaServicioSerializer, PagoSerializer, ReglaReprogramacionSerializer,
     HistorialReprogramacionSerializer, ConfiguracionGlobalReprogramacionSerializer,
     ReprogramacionSerializer, PaqueteCompletoSerializer, PaqueteSerializer, PerfilUsuarioSerializer,
-    SoporteResumenSerializer
+    SoporteResumenSerializer, SuscripcionSerializer, ProveedorSerializer
 )
 from .serializer import TicketSerializer, TicketDetailSerializer, TicketMessageSerializer, NotificacionSerializer
 from .serializer import BitacoraSerializer
@@ -1337,3 +1337,22 @@ class ReservaMultiServicioView(APIView):
         # Re-serializar con un serializer de salida que no incluye el campo de entrada 'servicios'
         out = ReservaSalidaSerializer(reserva)
         return Response(out.data, status=status.HTTP_201_CREATED)
+
+
+class ProveedorViewSet(viewsets.ModelViewSet):
+    queryset = Proveedor.objects.select_related('usuario').all()
+    serializer_class = ProveedorSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def perform_create(self, serializer):
+        # Asegurarse de que el usuario exista
+        user = serializer.validated_data.get('usuario')
+        if not user:
+            raise serializers.ValidationError({'usuario': 'Este campo es requerido.'})
+        serializer.save()
+
+
+class SuscripcionViewSet(viewsets.ModelViewSet):
+    queryset = Suscripcion.objects.all()
+    serializer_class = SuscripcionSerializer
+    permission_classes = [permissions.AllowAny]

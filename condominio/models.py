@@ -968,3 +968,36 @@ class CampanaNotificacion(models.Model):
                 return Usuario.objects.filter(user__is_active=True, rol__nombre=rol_nombre)
         
         return Usuario.objects.none()
+
+
+# ============================
+# PROVEEDORES TURÍSTICOS
+# ============================
+class Proveedor(TimeStampedModel):
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="proveedor")
+    nombre_empresa = models.CharField(max_length=200)
+    descripcion = models.TextField(blank=True)
+    telefono = models.CharField(max_length=20, blank=True)
+    sitio_web = models.URLField(blank=True)
+
+    def __str__(self):
+        return self.nombre_empresa
+
+
+# ============================
+# SUSCRIPCIONES DE PROVEEDORES
+# ============================
+class Suscripcion(TimeStampedModel):
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, related_name="suscripciones")
+    precio = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    activa = models.BooleanField(default=True)
+    stripe_session_id = models.CharField(max_length=255, blank=True, null=True)
+    def __str__(self):
+        return f"{self.proveedor} → {self.plan}"
+
+    def esta_vigente(self):
+        from django.utils import timezone
+        hoy = timezone.now().date()
+        return self.activa and self.fecha_inicio <= hoy <= self.fecha_fin

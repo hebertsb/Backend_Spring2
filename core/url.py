@@ -28,4 +28,6 @@ urlpatterns = [
     path('crear-checkout-session-mobile/', crear_checkout_session_mobile, name='crear-checkout-mobile'),
     path('pago-exitoso-mobile/', pago_exitoso_mobile, name='pago-exitoso-mobile'),
     path('pago-cancelado-mobile/', pago_cancelado_mobile, name='pago-cancelado-mobile'),
+
+
 ]
