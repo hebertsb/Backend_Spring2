@@ -1228,6 +1228,80 @@ class CampanaNotificacionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'])
+    def enviar_test(self, request, pk=None):
+        """
+        Envía una notificación de prueba al usuario actual.
+        
+        POST /api/campanas-notificacion/{id}/enviar_test/
+        """
+        from condominio.utils import enviar_notificacion_fcm
+        
+        campana = self.get_object()
+        
+        # Obtener perfil del usuario actual
+        perfil = getattr(request.user, 'perfil', None)
+        if not perfil:
+            return Response(
+                {'error': 'Usuario no tiene perfil asociado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener dispositivos FCM del usuario
+        dispositivos = FCMDevice.objects.filter(
+            usuario=perfil,
+            activo=True
+        )
+        
+        if not dispositivos.exists():
+            return Response(
+                {'error': 'No tienes dispositivos FCM registrados. Por favor, inicia sesión desde la app móvil.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Enviar notificación de prueba a cada dispositivo
+        enviados = 0
+        errores = []
+        
+        for dispositivo in dispositivos:
+            try:
+                resultado = enviar_notificacion_fcm(
+                    titulo=f"[TEST] {campana.titulo}",
+                    cuerpo=f"{campana.cuerpo}\n\n🧪 Esta es una notificación de prueba.",
+                    usuario=perfil,
+                    tipo_notificacion=campana.tipo_notificacion,
+                    datos_adicionales={
+                        'campana_id': campana.id,
+                        'es_test': True,
+                        'test_enviado_por': request.user.email
+                    }
+                )
+                
+                if resultado.get('success'):
+                    enviados += 1
+                else:
+                    errores.append(resultado.get('error', 'Error desconocido'))
+            
+            except Exception as e:
+                errores.append(str(e))
+        
+        if enviados > 0:
+            return Response({
+                'mensaje': f'Notificación de prueba enviada exitosamente',
+                'dispositivos_alcanzados': enviados,
+                'errores': errores if errores else None,
+                'contenido_enviado': {
+                    'titulo': f"[TEST] {campana.titulo}",
+                    'cuerpo': campana.cuerpo,
+                    'tipo': campana.tipo_notificacion
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': 'No se pudo enviar la notificación de prueba',
+                'errores': errores
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
     def cancelar(self, request, pk=None):
         """
         Cancela una campaña en estado BORRADOR o PROGRAMADA.

@@ -40,6 +40,14 @@ test_reservas_endpoint.py
 test_viewset.py
 tmp_debug_post_ticket.py
 
+# Scripts temporales de debugging (pueden contener credenciales)
+tmp_*.py
+fix_*.py
+generate_*.py
+verificar_*.py
+actualizar_*.py
+uncomment_*.py
+
 # Carpeta de pagos (guías y docs locales)
 pagos/
 

@@ -45,11 +45,12 @@ ALLOWED_HOSTS = [
     '0.0.0.0',
     '192.168.0.1',
     '192.168.0.6',
-    '192.168.0.13',
+    '192.168.0.2',
     '192.168.56.1',
     # Dominios dinámicos de túneles para desarrollo (ngrok / Cloudflare)
     '.ngrok-free.app',
     '.trycloudflare.com',
+    
 ]
 
 
@@ -94,7 +95,6 @@ CORS_ALLOWED_ORIGINS = [
     #'https://sprightly-bunny-1e4b10.netlify.app'
 ]
 
-# For development you can also allow all origins (use carefully):
 CORS_ALLOW_ALL_ORIGINS = True  # ✅ Habilitado para pruebas locales
 
 # Si el frontend usa cookies/session, permitir credenciales CORS
@@ -106,9 +106,13 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok-free.app',
     'https://*.trycloudflare.com',
 ]
-
 # Asegurar redirección de URLs sin barra final (solo GET). Para POST añadimos rutas opcionales.
 APPEND_SLASH = True
+# ----------------------------------------------------------------------------------
+# CONFIGURACIÓN DE REDIRECCIONES SEGURAS PARA DEEP LINKS MÓVILES
+# ----------------------------------------------------------------------------------
+# Necesario para que los callbacks de Stripe puedan redirigir a turismoapp://
+ALLOWED_REDIRECT_SCHEMES = ['http', 'https', 'turismoapp']
 
 ROOT_URLCONF = 'config.urls'
 
