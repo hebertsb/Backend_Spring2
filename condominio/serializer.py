@@ -60,7 +60,7 @@ class ReservaSalidaSerializer(serializers.ModelSerializer):
     Expone los servicios creados a través del related_name 'servicios_reservados'.
     """
     servicios_reservados = ReservaServicioSerializer(
-        many=True, read_only=True, source='servicios_reservados'
+        many=True, read_only=True
     )
 
     class Meta:

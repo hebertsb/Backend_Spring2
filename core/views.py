@@ -63,10 +63,16 @@ def crear_checkout_session(request):
         data = request.data
         nombre = data.get("nombre", "Reserva")
         precio = float(data.get("precio", 0))
+        reserva_id = data.get("reserva_id")  # opcional, para enlazar con una reserva ya creada
         cantidad = int(data.get("cantidad", 1))
 
         if precio <= 0:
             return Response({"error": "Precio inválido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Construir URLs de retorno al FRONTEND (Netlify/Local)
+        success_url_extra = f"&reserva_id={reserva_id}" if reserva_id else ""
+        success_url = f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}{success_url_extra}"
+        cancel_url = f"{url_frontend}/pago-cancelado/"
 
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -81,11 +87,13 @@ def crear_checkout_session(request):
                     "quantity": cantidad,
                 }
             ],
-            success_url=f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{url_frontend}/pago-cancelado/",
+            success_url=success_url,
+            cancel_url=cancel_url,
             metadata={
                 "usuario_id": str(request.user.id) if request.user.is_authenticated else "anonimo",
-                "recommendation_url": f"{request.build_absolute_uri('/api/recomendacion/')}?session_id={{CHECKOUT_SESSION_ID}}"
+                "recommendation_url": f"{request.build_absolute_uri('/api/recomendacion/')}?session_id={{CHECKOUT_SESSION_ID}}",
+                "reserva_id": str(reserva_id) if reserva_id else None,
+                "payment_type": "reserva_web" if reserva_id else "venta",
             },
         )
 
@@ -93,6 +101,119 @@ def crear_checkout_session(request):
 
     except Exception as e:
         print("❌ Error Stripe:", e)
+    return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# =====================================================
+# CHECKOUT PARA RESERVA (WEB) – desde ID de reserva
+# =====================================================
+@api_view(["POST"])
+def crear_checkout_reserva(request):
+    """
+    Crea una sesión de Checkout de Stripe a partir de una Reserva existente.
+    Pensado para frontend web: devuelve la URL para redirigir al panel de pago.
+
+    Body JSON esperado:
+    { "reserva_id": 123 }
+
+    Usa reserva.total y reserva.moneda (USD/BOB). Convierte a centavos.
+    Agrega metadatos con usuario y reserva para facilitar verificación.
+    """
+    try:
+        # Validar configuración
+        if not settings.STRIPE_SECRET_KEY:
+            return Response({
+                "error": "Stripe no está configurado (STRIPE_SECRET_KEY ausente)"
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        from decimal import Decimal
+        from condominio.models import Reserva, Pago
+        from datetime import date
+
+        data = request.data or {}
+        reserva_id = data.get("reserva_id") or request.query_params.get("reserva_id")
+        if not reserva_id:
+            return Response({"error": "Debe enviar 'reserva_id'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Buscar reserva
+        try:
+            reserva = Reserva.objects.get(id=reserva_id)
+        except Reserva.DoesNotExist:
+            return Response({"error": f"Reserva {reserva_id} no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Autorización básica: dueño o staff
+        perfil = getattr(request.user, 'perfil', None)
+        if request.user.is_authenticated and not request.user.is_staff:
+            if not perfil or reserva.cliente_id != perfil.id:
+                return Response({"error": "No tienes permiso para esta reserva"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Preparar monto en centavos
+        try:
+            amount_cents = int(Decimal(reserva.total) * 100)
+        except Exception:
+            return Response({"error": "Total inválido en la reserva"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amount_cents <= 0:
+            return Response({"error": "El total de la reserva debe ser mayor a 0"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Moneda: mapear a valores aceptados por Stripe
+        moneda = (reserva.moneda or 'BOB').upper()
+        currency = 'usd' if moneda == 'USD' else 'bob'
+
+        # URLs de retorno al FRONTEND (Netlify/Local) – se leen de URL_FRONTEND
+        success_url = f"{url_frontend}/pago-exitoso?session_id={{CHECKOUT_SESSION_ID}}&reserva_id={reserva.id}"
+        cancel_url = f"{url_frontend}/pago-cancelado?reserva_id={reserva.id}"
+
+        # Construir sesión
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": currency,
+                    "product_data": {
+                        "name": f"Reserva #{reserva.id}",
+                        "description": "Reserva múltiple de servicios"
+                    },
+                    "unit_amount": amount_cents,
+                },
+                "quantity": 1,
+            }],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "payment_type": "reserva_web",
+                "reserva_id": str(reserva.id),
+                "usuario_id": str(request.user.id) if request.user.is_authenticated else "anonimo",
+            },
+            customer_email=(request.user.email if getattr(request.user, 'email', None) else None)
+        )
+
+        # Registrar/actualizar pago como pendiente con URL (opcional)
+        try:
+            Pago.objects.update_or_create(
+                reserva=reserva,
+                url_stripe=session.url,
+                defaults={
+                    'monto': Decimal(reserva.total),
+                    'metodo': 'Tarjeta',
+                    'estado': 'Pendiente',
+                    'fecha_pago': date.today(),
+                }
+            )
+        except Exception:
+            # No hacer fallar el checkout por errores no críticos de persistencia
+            pass
+
+        return Response({
+            "checkout_url": session.url,
+            "session_id": session.id,
+            "reserva_id": reserva.id,
+            "moneda": moneda,
+            "monto": float(reserva.total),
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        print("❌ Error Stripe (reserva web):", e)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # =====================================================

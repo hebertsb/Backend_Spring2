@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     chatbot_turismo,
     crear_checkout_session,
+    crear_checkout_reserva,
     crear_checkout_session_suscripcion,
     obtener_recomendacion,
     verificar_pago,
@@ -16,6 +17,7 @@ from .webhooks import stripe_webhook
 urlpatterns = [
     # Endpoints web existentes
     path('crear-checkout-session/', crear_checkout_session, name='crear-checkout-session'),
+    path('crear-checkout-reserva/', crear_checkout_reserva, name='crear-checkout-reserva'),
     path('crear-checkout-session-suscripcion/', crear_checkout_session_suscripcion, name='crear-checkout-session-suscripcion'),
     path('chatbot/turismo/', chatbot_turismo, name='chatbot-turismo'),
     path('recomendacion/', obtener_recomendacion, name='obtener-recomendacion'),
