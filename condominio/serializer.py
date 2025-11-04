@@ -36,18 +36,36 @@ class ReservaServicioSerializer(serializers.ModelSerializer):
 # Reserva con servicios múltiples
 # =====================================================
 class ReservaConServiciosSerializer(serializers.ModelSerializer):
-    servicios = ReservaServicioSerializer(many=True)
+    # Entrada: aceptar lista "servicios" como write_only
+    servicios = ReservaServicioSerializer(many=True, write_only=True)
+    # Salida: devolver los servicios creados usando el related_name del modelo
+    servicios_reservados = ReservaServicioSerializer(
+        many=True, read_only=True, source='servicios_reservados'
+    )
 
     class Meta:
         model = Reserva
-        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'servicios']
+        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'servicios', 'servicios_reservados']
 
     def create(self, validated_data):
-        servicios_data = validated_data.pop('servicios')
+        servicios_data = validated_data.pop('servicios', [])
         reserva = Reserva.objects.create(**validated_data)
         for servicio_data in servicios_data:
             ReservaServicio.objects.create(reserva=reserva, **servicio_data)
         return reserva
+
+
+class ReservaSalidaSerializer(serializers.ModelSerializer):
+    """Serializer de salida para evitar intentar leer el campo de entrada 'servicios'.
+    Expone los servicios creados a través del related_name 'servicios_reservados'.
+    """
+    servicios_reservados = ReservaServicioSerializer(
+        many=True, read_only=True, source='servicios_reservados'
+    )
+
+    class Meta:
+        model = Reserva
+        fields = ['id', 'fecha', 'estado', 'total', 'moneda', 'cliente', 'servicios_reservados']
 
 
 # =====================================================

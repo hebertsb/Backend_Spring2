@@ -1325,14 +1325,15 @@ class CampanaNotificacionViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 from rest_framework.views import APIView
-from .serializer import ReservaConServiciosSerializer
+from .serializer import ReservaConServiciosSerializer, ReservaSalidaSerializer
 
 class ReservaMultiServicioView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         serializer = ReservaConServiciosSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        reserva = serializer.save()
+        # Re-serializar con un serializer de salida que no incluye el campo de entrada 'servicios'
+        out = ReservaSalidaSerializer(reserva)
+        return Response(out.data, status=status.HTTP_201_CREATED)
