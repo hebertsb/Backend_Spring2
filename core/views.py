@@ -221,49 +221,6 @@ def crear_checkout_reserva(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
-
-<<<<<<< HEAD
-=======
-    try:
-        session = stripe.checkout.Session.retrieve(session_id)
-
-        pago_exitoso = session.payment_status == "paid"
-
-        # extraer metadata
-        metadata = getattr(session, "metadata", {}) or {}
-        payment_type = metadata.get("payment_type", "venta")
-        usuario_id_meta = metadata.get("usuario_id", None)
-        titulo_meta = metadata.get("titulo", None)
-
-        # NOTA: Funcionalidad de suscripciones deshabilitada (modelo Suscripcion eliminado)
-
-        # Nota: Stripe devuelve amount_total en centavos.
-        # Para evitar confusiones en el frontend, devolvemos ambos:
-        # - monto_total_centavos: valor crudo de Stripe
-        # - monto_total: valor en unidades (dividido entre 100)
-        reserva_id_meta = metadata.get("reserva_id")
-        monto_total_cent = session.amount_total or 0
-        try:
-            monto_total_unidad = (monto_total_cent or 0) / 100
-        except Exception:
-            monto_total_unidad = None
-
-        return Response({
-            "pago_exitoso": pago_exitoso,
-            "cliente_email": session.customer_details.email if session.customer_details else None,
-            "monto_total_centavos": monto_total_cent,
-            "monto_total": monto_total_unidad,
-            "moneda": (session.currency or '').upper(),
-            "payment_type": payment_type,
-            "reserva_id": reserva_id_meta,
-        })
-
-    except Exception as e:
-        print("❌ Error verificando sesión:", e)
-        return Response({"error": str(e)}, status=500)
->>>>>>> c9d2eec5c1c826805ed6ba0e14b5d877f0e6ea62
-
 @api_view(["POST"])
 def chatbot_turismo(request):
     pregunta = request.data.get("pregunta", "")
