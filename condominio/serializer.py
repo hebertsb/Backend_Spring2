@@ -40,7 +40,7 @@ class ReservaConServiciosSerializer(serializers.ModelSerializer):
     servicios = ReservaServicioSerializer(many=True, write_only=True)
     # Salida: devolver los servicios creados usando el related_name del modelo
     servicios_reservados = ReservaServicioSerializer(
-        many=True, read_only=True, source='servicios_reservados'
+        many=True, read_only=True
     )
 
     class Meta:
