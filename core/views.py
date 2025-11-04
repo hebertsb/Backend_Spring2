@@ -16,6 +16,21 @@ load_dotenv()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 url_frontend = os.getenv("URL_FRONTEND", "http://127.0.0.1:3000")
 
+# ============================================================================
+# HELPER: Redirección a Deep Links sin validación de esquema
+# ============================================================================
+def redirect_to_deep_link(url):
+    """
+    Crea una respuesta de redirección HTTP 302 a cualquier URL, incluyendo
+    esquemas personalizados como 'turismoapp://' sin validación.
+    
+    Solución para DisallowedRedirect: Django valida esquemas en HttpResponseRedirect.__init__()
+    antes de que podamos establecer allowed_schemes. Esta función crea la response manualmente.
+    """
+    response = HttpResponse(status=302)
+    response['Location'] = url
+    return response
+
 @api_view(["GET"])
 def obtener_recomendacion(request):
     """Obtiene la recomendación generada para una sesión de pago específica."""
@@ -428,9 +443,7 @@ def pago_exitoso_mobile(request):
     if not session_id or not reserva_id:
         print(f"❌ Error: Faltan parámetros")
         missing_params_link = "turismoapp://payment-error?error=missing_params"
-        response = HttpResponseRedirect(missing_params_link)
-        response.allowed_schemes = ['http', 'https', 'turismoapp']
-        return response
+        return redirect_to_deep_link(missing_params_link)
     
     try:
         # Verificar sesión con Stripe API
@@ -486,10 +499,8 @@ def pago_exitoso_mobile(request):
                 print(f"   🚀 Redirigiendo a app: {deep_link[:80]}...")
                 print(f"{'='*60}\n")
                 
-                # Redirigir a la app móvil usando HttpResponseRedirect con esquema permitido
-                response = HttpResponseRedirect(deep_link)
-                response.allowed_schemes = ['http', 'https', 'turismoapp']
-                return response
+                # Redirigir a la app móvil usando deep link personalizado
+                return redirect_to_deep_link(deep_link)
                 
             except Reserva.DoesNotExist:
                 print(f"   ❌ Error: Reserva {reserva_id} no encontrada")
@@ -498,9 +509,7 @@ def pago_exitoso_mobile(request):
                     f"?error=reserva_not_found"
                     f"&reserva_id={reserva_id}"
                 )
-                response = HttpResponseRedirect(error_link)
-                response.allowed_schemes = ['http', 'https', 'turismoapp']
-                return response
+                return redirect_to_deep_link(error_link)
         
         elif session.payment_status == "unpaid":
             # Pago no completado
@@ -511,9 +520,7 @@ def pago_exitoso_mobile(request):
                 f"&reserva_id={reserva_id}"
                 f"&status={session.payment_status}"
             )
-            response = HttpResponseRedirect(pending_link)
-            response.allowed_schemes = ['http', 'https', 'turismoapp']
-            return response
+            return redirect_to_deep_link(pending_link)
         
         else:
             # Otro estado
@@ -524,9 +531,7 @@ def pago_exitoso_mobile(request):
                 f"&status={session.payment_status}"
                 f"&reserva_id={reserva_id}"
             )
-            response = HttpResponseRedirect(error_status_link)
-            response.allowed_schemes = ['http', 'https', 'turismoapp']
-            return response
+            return redirect_to_deep_link(error_status_link)
     
     except Exception as e:
         print(f"   ❌ Error procesando pago: {str(e)}")
@@ -539,9 +544,7 @@ def pago_exitoso_mobile(request):
             f"?error=processing_error"
             f"&session_id={session_id}"
         )
-        response = HttpResponseRedirect(exception_link)
-        response.allowed_schemes = ['http', 'https', 'turismoapp']
-        return response
+        return redirect_to_deep_link(exception_link)
 
 
 @api_view(["GET"])
@@ -580,15 +583,11 @@ def pago_cancelado_mobile(request):
         print(f"   🚀 Redirigiendo a app: {deep_link}")
         print(f"{'='*60}\n")
         
-        response = HttpResponseRedirect(deep_link)
-        response.allowed_schemes = ['http', 'https', 'turismoapp']
-        return response
+        return redirect_to_deep_link(deep_link)
     
     except Exception as e:
         print(f"   ❌ Error: {str(e)}")
         print(f"{'='*60}\n")
         
         cancel_link = f"turismoapp://payment-cancel?status=cancelled"
-        response = HttpResponseRedirect(cancel_link)
-        response.allowed_schemes = ['http', 'https', 'turismoapp']
-        return response
+        return redirect_to_deep_link(cancel_link)
