@@ -7,7 +7,8 @@ from datetime import datetime
 import zipfile
 from pathlib import Path
 import traceback
-
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import permission_classes
 # Importaciones de módulos internos
 from .utils import BACKUP_DIR
 from .restore_backup import restore_backup
@@ -17,7 +18,7 @@ from .upload_dropbox import (
     download_from_dropbox,
     get_dropbox_share_link
 )
-from .backup_full import run_backup
+
 
 
 # ============================================================
@@ -36,29 +37,42 @@ def crear_backup(request):
     try:
         print("🚀 Iniciando creación de backup completo desde API...")
 
+        from .backup_full import run_backup
+
         # Parámetros opcionales
         include_backend = request.data.get('include_backend', True)
         include_db = request.data.get('include_db', True)
         db_type = request.data.get('db_type', 'postgres')
+        automatic = request.data.get('automatic', False)  # Nuevo parámetro
 
         # Ejecutar el proceso completo de backup
         run_backup(
             include_backend=include_backend,
             include_db=include_db,
-            db_type=db_type
+            db_type=db_type,
+            automatic=automatic  # Pasar el parámetro automático
         )
 
-        # Buscar el archivo ZIP más reciente
-        backups = sorted(
-            [f for f in os.listdir(BACKUP_DIR) if f.startswith("full_backup_") and f.endswith(".zip")],
-            key=lambda x: os.path.getmtime(os.path.join(BACKUP_DIR, x)),
-            reverse=True
-        )
+        # Buscar el archivo ZIP más reciente (COMPATIBILIDAD CON NUEVO SISTEMA)
+        backup_patterns = [
+            "manual_backup_*.zip",  # Nuevo sistema manual
+            "auto_backup_*.zip",    # Nuevo sistema automático  
+            "full_backup_*.zip"     # Sistema viejo (backwards compatibility)
+        ]
+        
+        latest_backup = None
+        latest_time = 0
+        
+        for pattern in backup_patterns:
+            for backup_file in BACKUP_DIR.glob(pattern):
+                file_time = backup_file.stat().st_mtime
+                if file_time > latest_time:
+                    latest_time = file_time
+                    latest_backup = backup_file.name
 
-        if not backups:
+        if not latest_backup:
             return JsonResponse({"error": "No se generó ningún archivo de backup."}, status=500)
 
-        latest_backup = backups[0]
         dropbox_path = f"/backups/{latest_backup}"
 
         # Intentar generar enlace de Dropbox
@@ -71,7 +85,8 @@ def crear_backup(request):
             "message": "Backup completo generado y subido correctamente.",
             "backup_file": latest_backup,
             "dropbox_path": dropbox_path,
-            "dropbox_link": link or "No disponible"
+            "dropbox_link": link or "No disponible",
+            "backup_type": "manual" if "manual_backup" in latest_backup else "automatic"
         })
 
     except Exception as e:
@@ -84,13 +99,33 @@ def crear_backup(request):
 
 
 # ============================================================
-# 📋 LISTAR BACKUPS LOCALES
+# 📋 LISTAR BACKUPS LOCALES (ACTUALIZADO)
 # ============================================================
 
 @api_view(['GET'])
 def listar_backups(request):
-    backups = [f for f in os.listdir(BACKUP_DIR) if f.endswith('.zip')]
-    return JsonResponse({'backups': backups})
+    """Lista todos los backups locales, incluyendo manuales y automáticos"""
+    backup_files = []
+    
+    # Incluir todos los tipos de backups
+    patterns = ["manual_backup_*.zip", "auto_backup_*.zip", "full_backup_*.zip"]
+    
+    for pattern in patterns:
+        for backup_file in BACKUP_DIR.glob(pattern):
+            file_info = {
+                'name': backup_file.name,
+                'size_mb': round(backup_file.stat().st_size / (1024 * 1024), 2),
+                'modified': datetime.fromtimestamp(backup_file.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'manual' if 'manual_backup' in backup_file.name else 
+                       'automatic' if 'auto_backup' in backup_file.name else 
+                       'legacy'
+            }
+            backup_files.append(file_info)
+    
+    # Ordenar por fecha de modificación (más reciente primero)
+    backup_files.sort(key=lambda x: x['modified'], reverse=True)
+    
+    return JsonResponse({'backups': backup_files})
 
 
 # ============================================================
@@ -137,7 +172,7 @@ def restaurar_backup(request):
 def descargar_backup(request, filename):
     """
     Descarga un archivo de backup por nombre.
-    Ejemplo: /api/backups/download/full_backup_20251011_095500.zip
+    Ejemplo: /api/backups/download/manual_backup_20251030_154930.zip
     """
     file_path = Path(BACKUP_DIR) / filename
     if not file_path.exists() or not file_path.is_file():
@@ -156,7 +191,7 @@ def descargar_backup(request, filename):
 def eliminar_backup(request, filename):
     """
     Elimina un archivo de backup por nombre.
-    Ejemplo: /api/backups/delete/full_backup_20251011_095500.zip
+    Ejemplo: /api/backups/delete/manual_backup_20251030_154930.zip
     """
     file_path = Path(BACKUP_DIR) / filename
     if not file_path.exists() or not file_path.is_file():
@@ -172,13 +207,24 @@ def eliminar_backup(request, filename):
 # ============================================================
 # ☁️ FUNCIONES DE DROPBOX
 # ============================================================
-
 @api_view(['GET'])
 def listar_backups_dropbox(request):
-    """Lista los backups almacenados en Dropbox."""
+    """Lista los backups almacenados en Dropbox (ordenados por fecha descendente)."""
     try:
         files = list_backups_dropbox()
-        return JsonResponse({'backups': files})
+        
+        # ✅ ORDENAR por fecha DESCENDENTE (más reciente primero)
+        files_ordenados = sorted(
+            files, 
+            key=lambda x: x.get('modified', ''), 
+            reverse=True  # ← DESCENDENTE
+        )
+        
+        print(f"🎯 Backups ordenados descendente: {len(files_ordenados)} archivos")
+        if files_ordenados:
+            print(f"🆕 Primer backup (más reciente): {files_ordenados[0]['name']}")
+        
+        return JsonResponse({'backups': files_ordenados})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -189,7 +235,7 @@ def restaurar_desde_dropbox(request):
     Restaura un backup alojado en Dropbox.
     Espera un JSON con:
     {
-        "filename": "full_backup_20251011_180130.zip",
+        "filename": "manual_backup_20251030_154930.zip",
         "type": "total" | "base" | "backend" | "frontend"
     }
     """
@@ -216,3 +262,77 @@ def restaurar_desde_dropbox(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+####descargas 
+@api_view(['GET'])
+def descargar_desde_dropbox(request, filename):
+    """
+    GET /api/backups/dropbox/descargar/nombre_backup.zip
+    """
+    try:
+        from .upload_dropbox import get_dropbox_share_link
+        
+        download_link = get_dropbox_share_link(filename)
+        
+        if not download_link:
+            return JsonResponse({'error': f'Backup no encontrado: {filename}'}, status=404)
+        
+        # Redirigir directamente a Dropbox
+        from django.http import HttpResponseRedirect
+        return HttpResponseRedirect(download_link)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+
+###metodo de emergencia sin base
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Sin autenticación normal
+def restaurar_base_emergencia(request):
+    """
+    EMERGENCIA: Restaura solo la base de datos cuando se borró toda la base
+    No requiere autenticación JWT (usa token de emergencia)
+    """
+    emergency_token = request.data.get('emergency_token')
+    expected_token = os.environ.get('EMERGENCY_RESTORE_TOKEN')
+    
+    # Validar token de emergencia
+    if not emergency_token or emergency_token != expected_token:
+        return JsonResponse(
+            {'error': 'Token de emergencia inválido'}, 
+            status=403
+        )
+    
+    filename = request.data.get('filename')
+    if not filename:
+        return JsonResponse(
+            {'error': 'Debe especificar el nombre del backup'}, 
+            status=400
+        )
+    
+    try:
+        # Descargar backup desde Dropbox
+        from .upload_dropbox import download_from_dropbox
+        local_path = download_from_dropbox(filename, BACKUP_DIR)
+        
+        # Restaurar SOLO la base de datos (sin tocar código)
+        result = restore_backup(
+            backup_zip_path=Path(local_path),
+            restore_code=False,    # NO restaurar código
+            restore_db=True        # SÍ restaurar base de datos
+        )
+        
+        # Limpiar archivo temporal
+        if Path(local_path).exists():
+            os.remove(local_path)
+        
+        return JsonResponse({
+            'message': f'✅ Base de datos restaurada exitosamente desde: {filename}',
+            'backup_used': filename,
+            'result': result
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error en restauración de emergencia: {str(e)}'
+        }, status=500)
