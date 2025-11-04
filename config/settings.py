@@ -47,6 +47,9 @@ ALLOWED_HOSTS = [
     '192.168.0.6',
     '192.168.0.13',
     '192.168.56.1',
+    # Dominios dinámicos de túneles para desarrollo (ngrok / Cloudflare)
+    '.ngrok-free.app',
+    '.trycloudflare.com',
 ]
 
 
@@ -88,11 +91,24 @@ CORS_ALLOWED_ORIGINS = [
     'http://192.168.56.1:3000',
     # Frontend desplegado en Netlify
     'https://turismosi2.netlify.app',
-    'https://sprightly-bunny-1e4b10.netlify.app'
+    #'https://sprightly-bunny-1e4b10.netlify.app'
 ]
 
 # For development you can also allow all origins (use carefully):
 CORS_ALLOW_ALL_ORIGINS = True  # ✅ Habilitado para pruebas locales
+
+# Si el frontend usa cookies/session, permitir credenciales CORS
+CORS_ALLOW_CREDENTIALS = True
+
+# Confiar en orígenes del frontend para CSRF cuando se use SessionAuthentication
+CSRF_TRUSTED_ORIGINS = [
+    'https://turismosi2.netlify.app',
+    'https://*.ngrok-free.app',
+    'https://*.trycloudflare.com',
+]
+
+# Asegurar redirección de URLs sin barra final (solo GET). Para POST añadimos rutas opcionales.
+APPEND_SLASH = True
 
 ROOT_URLCONF = 'config.urls'
 

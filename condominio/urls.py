@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from rest_framework import routers
 
 from authz.api import RolViewSet
@@ -8,7 +8,7 @@ from .api import (
     CampaniaServicioViewSet, PagoViewSet, ReglaReprogramacionViewSet,
     HistorialReprogramacionViewSet, ConfiguracionGlobalReprogramacionViewSet,
     ReprogramacionViewSet, TicketViewSet, TicketMessageViewSet, NotificacionViewSet,
-    PerfilUsuarioViewSet, SoportePanelViewSet, FCMDeviceViewSet, CampanaNotificacionViewSet
+    PerfilUsuarioViewSet, SoportePanelViewSet, FCMDeviceViewSet, CampanaNotificacionViewSet, ReservaMultiServicioView
 )
 from .api import BitacoraViewSet
 
@@ -60,4 +60,7 @@ urlpatterns = router.urls + [
     path('reportes/ventas/', generar_reporte_ventas, name='generar-reporte-ventas'),
     path('reportes/clientes/', generar_reporte_clientes, name='generar-reporte-clientes'),
     path('reportes/productos/', generar_reporte_productos, name='generar-reporte-productos'),
+    # Aceptar con o sin barra final para evitar 404 en POST sin slash
+    path('reservas-multiservicio/', ReservaMultiServicioView.as_view(), name='reserva-multiservicio'),
+    re_path(r'^reservas-multiservicio/?$', ReservaMultiServicioView.as_view()),
 ]

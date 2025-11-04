@@ -30,7 +30,7 @@ from .models import (
 class ReservaServicioSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReservaServicio
-        fields = ['id', 'servicio', 'fecha', 'fecha_inicio', 'fecha_fin']
+        fields = ['servicio', 'fecha']
 
 # =====================================================
 # Reserva con servicios múltiples

@@ -1249,3 +1249,16 @@ class CampanaNotificacionViewSet(viewsets.ModelViewSet):
             'mensaje': 'Campaña cancelada exitosamente',
             'estado': 'CANCELADA'
         }, status=status.HTTP_200_OK)
+
+from rest_framework.views import APIView
+from .serializer import ReservaConServiciosSerializer
+
+class ReservaMultiServicioView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ReservaConServiciosSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
