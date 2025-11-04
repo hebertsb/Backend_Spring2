@@ -425,7 +425,10 @@ def pago_exitoso_mobile(request):
     # Validar parámetros
     if not session_id or not reserva_id:
         print(f"❌ Error: Faltan parámetros")
-        return HttpResponseRedirect(f"turismoapp://payment-error?error=missing_params")
+        missing_params_link = "turismoapp://payment-error?error=missing_params"
+        response = HttpResponseRedirect(missing_params_link)
+        response.allowed_schemes = ['http', 'https', 'turismoapp']
+        return response
     
     try:
         # Verificar sesión con Stripe API
@@ -481,36 +484,47 @@ def pago_exitoso_mobile(request):
                 print(f"   🚀 Redirigiendo a app: {deep_link[:80]}...")
                 print(f"{'='*60}\n")
                 
-                # Redirigir a la app móvil usando HttpResponseRedirect
-                return HttpResponseRedirect(deep_link)
+                # Redirigir a la app móvil usando HttpResponseRedirect con esquema permitido
+                response = HttpResponseRedirect(deep_link)
+                response.allowed_schemes = ['http', 'https', 'turismoapp']
+                return response
                 
             except Reserva.DoesNotExist:
                 print(f"   ❌ Error: Reserva {reserva_id} no encontrada")
-                return HttpResponseRedirect(
+                error_link = (
                     f"turismoapp://payment-error"
                     f"?error=reserva_not_found"
                     f"&reserva_id={reserva_id}"
                 )
+                response = HttpResponseRedirect(error_link)
+                response.allowed_schemes = ['http', 'https', 'turismoapp']
+                return response
         
         elif session.payment_status == "unpaid":
             # Pago no completado
             print(f"   ⚠️  Pago no completado: {session.payment_status}")
-            return HttpResponseRedirect(
+            pending_link = (
                 f"turismoapp://payment-pending"
                 f"?session_id={session_id}"
                 f"&reserva_id={reserva_id}"
                 f"&status={session.payment_status}"
             )
+            response = HttpResponseRedirect(pending_link)
+            response.allowed_schemes = ['http', 'https', 'turismoapp']
+            return response
         
         else:
             # Otro estado
             print(f"   ⚠️  Estado inesperado: {session.payment_status}")
-            return HttpResponseRedirect(
+            error_status_link = (
                 f"turismoapp://payment-error"
                 f"?error=unexpected_status"
                 f"&status={session.payment_status}"
                 f"&reserva_id={reserva_id}"
             )
+            response = HttpResponseRedirect(error_status_link)
+            response.allowed_schemes = ['http', 'https', 'turismoapp']
+            return response
     
     except Exception as e:
         print(f"   ❌ Error procesando pago: {str(e)}")
@@ -518,11 +532,14 @@ def pago_exitoso_mobile(request):
         traceback.print_exc()
         print(f"{'='*60}\n")
         
-        return HttpResponseRedirect(
+        exception_link = (
             f"turismoapp://payment-error"
             f"?error=processing_error"
             f"&session_id={session_id}"
         )
+        response = HttpResponseRedirect(exception_link)
+        response.allowed_schemes = ['http', 'https', 'turismoapp']
+        return response
 
 
 @api_view(["GET"])
@@ -561,10 +578,15 @@ def pago_cancelado_mobile(request):
         print(f"   🚀 Redirigiendo a app: {deep_link}")
         print(f"{'='*60}\n")
         
-        return HttpResponseRedirect(deep_link)
+        response = HttpResponseRedirect(deep_link)
+        response.allowed_schemes = ['http', 'https', 'turismoapp']
+        return response
     
     except Exception as e:
         print(f"   ❌ Error: {str(e)}")
         print(f"{'='*60}\n")
         
-        return HttpResponseRedirect(f"turismoapp://payment-cancel?status=cancelled")
+        cancel_link = f"turismoapp://payment-cancel?status=cancelled"
+        response = HttpResponseRedirect(cancel_link)
+        response.allowed_schemes = ['http', 'https', 'turismoapp']
+        return response
