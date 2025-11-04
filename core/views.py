@@ -408,6 +408,8 @@ def pago_exitoso_mobile(request):
     3. Actualiza el estado de la reserva en la base de datos
     4. Crea registro de pago
     5. Redirige a deep link: turismoapp://payment-success?...
+    
+    VERSIÓN: 2024-11-03 v2 - Fix allowed_schemes per-response
     """
     from condominio.models import Reserva, Pago
     from datetime import date
@@ -417,7 +419,7 @@ def pago_exitoso_mobile(request):
     reserva_id = request.GET.get("reserva_id")
     
     print(f"\n{'='*60}")
-    print(f"📱 CALLBACK PAGO EXITOSO MÓVIL")
+    print(f"📱 CALLBACK PAGO EXITOSO MÓVIL [v2-fixed-allowed-schemes]")
     print(f"{'='*60}")
     print(f"   Session ID: {session_id}")
     print(f"   Reserva ID: {reserva_id}")
