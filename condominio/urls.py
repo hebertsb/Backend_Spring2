@@ -1,6 +1,6 @@
 from django.urls import path, include, re_path
 from rest_framework import routers
-
+from core.views import listar_suscripciones
 from authz.api import RolViewSet
 from .api import (
     CategoriaViewSet, ProveedorViewSet, ServicioViewSet, SuscripcionViewSet, UsuarioViewSet, CampaniaViewSet, PaqueteViewSet,
@@ -49,6 +49,7 @@ router.register(r'soporte-panel', SoportePanelViewSet, basename='soporte-panel')
 router.register(r'proveedores', ProveedorViewSet, basename='proveedores')
 router.register(r'suscripciones', SuscripcionViewSet, basename='suscripciones')
 
+
 urlpatterns = router.urls + [
     path('backups/', include('condominio.backups.urls')),
     
@@ -59,6 +60,7 @@ urlpatterns = router.urls + [
     path('reportes/graficas/', obtener_datos_graficas, name='obtener-datos-graficas'),
     
     # 📄 Generación de Reportes Descargables (PDF, Excel, DOCX)
+    path("suscripciones/", listar_suscripciones),
     path('reportes/ventas/', generar_reporte_ventas, name='generar-reporte-ventas'),
     path('reportes/clientes/', generar_reporte_clientes, name='generar-reporte-clientes'),
     path('reportes/productos/', generar_reporte_productos, name='generar-reporte-productos'),

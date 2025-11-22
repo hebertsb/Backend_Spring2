@@ -23,7 +23,6 @@ urlpatterns = [
     path('recomendacion/', obtener_recomendacion, name='obtener-recomendacion'),
     path('verificar-pago/', verificar_pago, name='verificar-pago'),
     path('webhook/stripe/', stripe_webhook, name='stripe-webhook'),
-    
     # Nuevos endpoints para app móvil Flutter con deep links
     path('crear-checkout-session-mobile/', crear_checkout_session_mobile, name='crear-checkout-mobile'),
     path('pago-exitoso-mobile/', pago_exitoso_mobile, name='pago-exitoso-mobile'),

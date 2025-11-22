@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from rest_framework import status
 from django.core.cache import cache
 from .openai_client import get_openai_client  # ← cliente centralizado
+from condominio.serializer import SuscripcionSerializer 
 
 load_dotenv()
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -811,3 +812,30 @@ def pago_cancelado_mobile(request):
         
         cancel_link = f"turismoapp://payment-cancel?status=cancelled"
         return redirect_to_deep_link(cancel_link)
+
+
+@api_view(["GET"])
+def listar_suscripciones(request):
+    from condominio.models import Suscripcion
+
+    usuario_id = request.GET.get("usuario_id")
+    proveedor_id = request.GET.get("proveedor_id")
+    activas = request.GET.get("activas")  # "true" / "false"
+
+    suscripciones = Suscripcion.objects.all()
+
+    # Filtros opcionales
+    if usuario_id:
+        suscripciones = suscripciones.filter(proveedor__usuario_id=usuario_id)
+
+    if proveedor_id:
+        suscripciones = suscripciones.filter(proveedor_id=proveedor_id)
+
+    if activas is not None:
+        if activas.lower() == "true":
+            suscripciones = suscripciones.filter(activa=True)
+        elif activas.lower() == "false":
+            suscripciones = suscripciones.filter(activa=False)
+
+    serializer = SuscripcionSerializer(suscripciones, many=True)
+    return Response(serializer.data)
